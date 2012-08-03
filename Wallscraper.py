@@ -55,9 +55,8 @@ def Wallbase_Search(url):
     login_vals = {'usrname': 'andrusk', 'pass': 'p0w3rus3r', 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
     login_data = urllib.urlencode(login_vals)
     http_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc http://wallbase.cc/user/adult_confirm/1'} 
-
+    search_headers = {}
     
-
 #    Lists that will contain all of the urls found in the main search page 
 #    as well as the associated filename of the source image
     img_src_name = []
@@ -71,9 +70,11 @@ def Wallbase_Search(url):
     
 #    Populate an object with the source html
     url_html = search_url.read()
-
-
-
+    #This code will output the html for each match to a file
+    filename = 'page.html'
+    FILE = open(filename, "w")
+    FILE.writelines(url_html)
+    FILE.close()
     
 #    Regular expression used to find valid wallpaper urls and append them to the url list
     matchs = re.findall(r'http://wallbase.cc/wallpaper/\d+', url_html)
@@ -89,36 +90,29 @@ def Wallbase_Search(url):
     print '\nCurrently processing matches'
 
     for match in matchs:
-        print match
-#        img_src_open = urllib.urlopen(match)
-#        img_src_html = img_src_open.read()
-
-##The following is test code delete if it doesn't work, and uncomment above 2 lines
+        #img_src_open = urllib.urlopen(match)
+        #img_src_html = img_src_open.read()
+        ##The following is test code delete if it doesn't work, and uncomment above 2 lines
         img_src_req = Request(match, login_data, http_headers)
         img_src_open = urlopen(img_src_req)
         img_src_html = img_src_open.read()
-        
-##        This code will output the html for each match to a file
-        filename = 'test.html'
-        FILE = open(filename, "w")
-        FILE.writelines(img_src_html)
-        FILE.close()
-
-        img_match_src = re.search(r'http://[^www]\S+(wallpaper-\d+\S\w+)', img_src_html)
-        
-#        if not img_match_src:
-#            img_match_src = re.search(r'http://[^www]\w+', img_src_html)
-#            print img_match_src.group()
-    
-        
-#End of the test code
-
+        img_match_src = re.search(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)', img_src_html)
+        #img_match_src = re.search(r'http://[^www]\S+(wallpaper-\d+\S\w+)', img_src_html)
+        #img_match_src_imgshack = re.search(r'http://[^www]\S+(wallpaper\d+\S+\w+)', img_src_html)
+        #if not img_match_src:
+        #img_match_src = re.search(r'http://[^www]\w+', img_src_html)
+        #print img_match_src.group()
+        #End of the test code
         if img_match_src:
             img_src_name.append(img_match_src.group(1))
             img_src_url.append(img_match_src.group(0))
-            print 100 * float(matchs.index(match) +1)/float(len(matchs)), '% complete'
+            #Verbose output, uncomment if you want to see the source urls of the imgs
+            print img_src_url[-1]
+            #Completion percentage, usefl to see where you are in the matching process
+            print 'wb ', 100 * float(matchs.index(match) +1)/float(len(matchs)), '% complete'
         else:
-            print 'No img_src\'s found'
+            #If no <img src> is found in the file, print error. Probably a login issue.
+            print 'Error: No img_src\'s found'
             
     print '\n', len(img_src_name), " Wallpapers successfully found."
     raw_input("\n\nPress enter to download your wallpapers!")
@@ -132,19 +126,19 @@ def Wallbase_Search(url):
         count += 1
     print "Wallpapers successfully stolen. Enjoy!"
 
-#This method seperates out the downloading of the images
-#I need to break up the main method as well to make the code cleaner
 
 def get_img(filename, url):
-    """Method used to retrieve a specific url in the form of 'http://valid-path.jpg' """
+    """This method is used to retrieve a specific url in the form of 'http://valid-path.jpg'
+    FUTURE: feed a list of urls into this method instead of one url at a time """
 #    Verbose file retrieval string
 #    print 'Retrieving ' + filename +' from the URL @' +  url
     urllib.urlretrieve(url, filename)
     
 def wallbase_auth(username, password):
-
-    '''The following code takes user variables and logs you into wallbase
-    this allows you to download images from favorites, and NSFW images'''
+    '''The following code takes user variables and logs you into wallbase.
+    this allows you to download images from favorites, and NSFW images. 
+    This method needs to be run every time you attempt to run a match against
+    restricted pages on wallbase'''
     
     #    Variables for the wallbase login page from the bash script
     #    usrname=$USER&pass=$PASS&nopass_email=Type+in+your+e-mail+and+press+enter&nopass=0&1=1
@@ -157,46 +151,48 @@ def wallbase_auth(username, password):
     req = Request(login_url, login_data, http_headers)
     resp = urlopen(req)
     cj.save(COOKIEFILE)
-#    print resp.read()
-    
+    #print resp.read()
+    #print 'Successfully authed'
 
-#Commented out and moved to it's own method'    
-##    Try a request of the favorites url
-#    favorites_url = 'http://wallbase.cc/user/favorites'
-#    fav_req = Request(favorites_url, login_data, http_headers)
-#    fav_resp = urlopen(fav_req)
-#    print fav_resp.read()
-#    cj.save(COOKIEFILE)
-#    
+def list_favorites():
+    '''Calls to this method returns a dictionary of the users favorites
+    This will allow to select which favorites they would like to download'''
     
-#    Return a list of the users favorites
-    return None
-
-def list_favorites(username, password):
-    
-    login_vals = {'usrname': username, 'pass': password, 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
+    #Code to set variables for login and search functions
+    login_vals = {'usrname': 'andrusk', 'pass': 'p0w3rus3r', 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
     login_data = urllib.urlencode(login_vals)
     http_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc http://wallbase.cc/user/adult_confirm/1 '} 
     favorites_url = 'http://wallbase.cc/user/favorites'
     fav_req = Request(favorites_url, login_data, http_headers)
     fav_resp = urlopen(fav_req)
+    fav_list_html = fav_resp.read()
     cj.save(COOKIEFILE)
-#   print fav_resp.read()
     
-  
+    #Begin matching the favorites urls and their names
+    fav_src_dict ={}
+    fav_src_url = re.findall(r'(http://wallbase.cc/user/favorites/\d+)" class="collink"><span class="counter">\d+</span>\s\w+\s*\w*', fav_list_html)
+    fav_src_name = re.findall(r'</span>\s(\w+\s*\w*)', fav_list_html)
+    count = 0
+    while count < len(fav_src_name):
+        fav_src_dict [fav_src_name[count]] = fav_src_url[count]
+        count +=1
+    return fav_src_dict
+    
     
 def logout():
     '''This sub-method when invoked will clear all cookies
-        stored by this method and effectively log the user out'''
+        stored by this method and effectively log the user out.
+        Run this method when you're down downloading if you want to 
+        clear your cookies'''
     cj.clear_session_cookies()
     print 'You have been logged out'
 
 
 
 wallbase_auth('andrusk', 'p0w3rus3r')
-list_favorites('andrusk', 'p0w3rus3r')
-#Wallbase_Search('http://wallbase.cc/user/favorites/24355')
+#print list_favorites()
 
 
-
-Wallbase_Search('http://wallbase.cc/search')
+Wallbase_Search('http://wallbase.cc/user/favorites/24355')
+#Wallbase_Search('http://wallbase.cc/user/favorites/6066')
+#Wallbase_Search('http://wallbase.cc/search')
