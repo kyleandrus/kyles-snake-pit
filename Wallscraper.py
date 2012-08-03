@@ -11,8 +11,6 @@ import urllib
 import urllib2
 import cookielib
 
-
-
 #Create cookie file, bind variables to openeners and requesters
 #This simplifies the typing and makes it easier to make the script
 #cross platform
@@ -42,15 +40,14 @@ def login_vals():
     user_dict = {username: password}
     print user_dict
     return user_dict
-
-def Search_Options(query = '', board ='0', nsfw ='111', res='0', res_opt='0', aspect='0', orderby='0', orderby_opt='0', thpp='32', section= 'wallpapers'):
+def search_options(query = '', board ='0', nsfw ='111', res='0', res_opt='0', aspect='0', orderby='0', orderby_opt='0', thpp='32', section= 'wallpapers'):
     '''
     This method populates a urllib encoded data stream used in the request of search URLs.
     usaege: 
     
-    Search_Options() -- returns a data stream with default query results. Give you the latest wallpapers
-    Search_Options('Kate Beckinsale') -- returns a data stream that will produce a search for Kate Beckinsale
-    Search_Options(query = 'different', board = 'different', etc..) You can modify these values manually to produce different search results
+    search_options() -- returns a data stream with default query results. Give you the latest wallpapers
+    search_options('Kate Beckinsale') -- returns a data stream that will produce a search for Kate Beckinsale
+    search_options(query = 'different', board = 'different', etc..) You can modify these values manually to produce different search results
     '''
     
     #Populate the search_query with new values if the user doesn't want to use the default ones.)
@@ -61,84 +58,90 @@ def Search_Options(query = '', board ='0', nsfw ='111', res='0', res_opt='0', as
 
 #method for opening the wallbase url and parsing the html code
 #need to add arguments and search options. Will do later
-def Wallbase_Search(search_query='', url = '', max_range = 320):
+def wallbase_search(search_query='', url = '', max_range = 320):
     """
     This Method open the wallbase main search page, performs a query and fills lists with
     matches for images that it retrieves based on the query from the host server
-    
     usage: 
-    Wallbase_Search(query) -- user defined query built from Search_Options
-    Wallbase_Search('', 'http://wallbase.cc/customurl) --A query performed against a specific page will ignore any search query 
+    wallbase_search(query) -- user defined query built from search_options
+    wallbase_search('', 'http://wallbase.cc/customurl) --A query performed against a specific page will ignore any search query 
     """
     #Implement a counter so you can download up to the maximum range 
     count = 0
     while count <= max_range:
         #Used to reset the url to it's original base after the loop'
         temp_url = url
-        #The request need values passed, but since we're not loggin in, 
-        #there's nothing to pass here. So use blank data in the req
+        #The request need values passed, but since we're not logging in
+        #or sending queries we just send blank data in the req
         blank_vals = {}
         blank_data = urllib.urlencode(blank_vals)
-        #Header values passed to the site, used for bypassing the age restriction
-        #I don't think I need these'
-        #http_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc http://wallbase.cc/user/adult_confirm/1'} 
         #Headers used to make search think I'm referring from the site
-        search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc/search'} # http://wallbase.cc/user/adult_confirm/1'} 
+        search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc/search'}
         #Lists that will contain all of the urls found in the main search page 
         #as well as the associated filename of the source image
         img_src_name = []
         img_src_url = []
         #Instantiate an object to hold the html text from the webpage
-        #search_url = urllib.urlopen(url)
         if url == '':
-            #url = 'http://wallbase.cc/search/'
-            #Delete next line if this doesn't work'
+            #Build a request using the search query values and header info
             url = 'http://wallbase.cc/search/' + str(count)
             req = Request(url, search_query, search_headers)
             search_url = urlopen(req)
         else:
-        #Build a request using the search query values and header info
+            #Build a request using the user inputed url
             url = url + '/' + str(count)
             search_req = Request(url, search_query, search_headers)
             search_url = urlopen(search_req)
         #Populate an object with the source html
         url_html = search_url.read()
-        #uncomment if you want to output the url html to an html file
+        #Uncomment if you want to output the url html to an html file
+        #Can be used to verify you're actually reading the write html
         output_html_to_file(url_html)
-        #Regular expression used to find valid wallpaper urls and append them to the url list
+        #Regular expression used to find valid wallpaper urls within the index.html
         matchs = re.findall(r'http://wallbase.cc/wallpaper/\d+', url_html)
+        #Verifying to the user what url we're grabbing from
         print "We are looking for wallpapers in the url:",  url
         print 'Currently processing matches'
         for match in matchs:
+            #When a wallpaper is found in the index, a second request is 
+            #made for that wallpapers source, this allows us to perform 
+            #a second search on that source for the actual url of the image
             img_src_req = Request(match, blank_data, search_headers)
             img_src_open = urlopen(img_src_req)
             img_src_html = img_src_open.read()
+            #Locating the wallpapers img src url
             img_match_src = re.search(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)', img_src_html)
             if img_match_src:
+                #If the image src exists, add the url and the name of the wallpaper to the 
+                #appropriate lists
                 img_src_name.append(img_match_src.group(1))
                 img_src_url.append(img_match_src.group(0))
                 #Completion percentage, useful to see where you are in the matching process
                 print 100 * int(matchs.index(match) +1)/int(len(matchs)), '% complete'
             else:
-                #If no <img src> is found in the file, print error. Probably a login issue.
+                #If no <img src> is found in the file, print error. You're probably not logged in.
                 print 'Error: No img_src\'s found. Make sure you authed first'
-        print '\n', len(img_src_name), " Wallpapers successfully found."
+        print len(img_src_name), " Wallpapers successfully found."
 #        raw_input("\nPress enter to download your wallpapers!")
         print "Deploying ninjas to steal wallpapers"
+        #Call to method used to actually download the images
         get_imgs(img_src_name, img_src_url)
-        print "Wallpapers successfully downloaded. Enjoy!"
+        print "End of list! Rolling over"
         count += 32
         url = temp_url
-        
 def get_imgs(img_name_list, img_url_list):
     """This method is used to retrieve images from a list of urls,
     saves them to your hard drive, and if they already exist skips the download.
     """
+    #Iterate through the loop and download images in the lists
     count = 0
     for img in img_name_list:
+        #Check whether the file already exists or not
+        #if yes, skip
         if os.path.isfile(img):
             print 'File already exists, skipping'
             count += 1
+        #Download the file if it doesn't exist already
         else:
             print 'Retrieving wallpaper', img_name_list.index(img) + 1, img
             urllib.urlretrieve(img_url_list[count], img)
@@ -176,7 +179,9 @@ def wallbase_auth(username, password):
     #print Successfully Authed
 def list_favorites():
     '''Calls to this method returns a dictionary of the users favorites
-    This will allow to select which favorites they would like to download'''
+    This will allow to select which favorites they would like to download
+    Will be used later to let you choose which page you want without manually
+    copying the url'''
     
     #Code to set variables for login and search functions
     login_vals = {'usrname': 'andrusk', 'pass': 'p0w3rus3r', 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
@@ -212,7 +217,7 @@ authentication of the user on wallbase
 If you attempt a search without 
 authenticating you will be unable to download 
 favorites or nsfw. Enter login information 
-in the form of 'username', 'password'
+in the form of ('username', 'password')
 '''
 wallbase_auth('andrusk', 'p0w3rus3r')
        
@@ -223,6 +228,6 @@ either use a string for a search e.g. 'Kate'
 or you can use a wallbase specific tag in 
 its place e.g. 'tag:9383
 '''
-search_query = Search_Options('tag:9383')
+search_query = search_options('tag:33206')
 
-Wallbase_Search(search_query, 'http://wallbase.cc/user/favorites/24353')
+wallbase_search(search_query)#'http://wallbase.cc/user/favorites/24353')
