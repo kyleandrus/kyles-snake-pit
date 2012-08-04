@@ -104,6 +104,8 @@ def wallbase_search(search_query='', url = '', max_range = 320):
         print "We are looking for wallpapers in the url:",  url
         print 'Currently processing matches'
         for match in matchs:
+            #Add in a time delay to try and stop 503 messages
+            time.sleep(.25)
             #When a wallpaper is found in the index, a second request is 
             #made for that wallpapers source, this allows us to perform 
             #a second search on that source for the actual url of the image
@@ -146,7 +148,8 @@ def get_imgs(img_name_list, img_url_list):
         else:
             print 'Retrieving wallpaper', img_name_list.index(img) + 1, img
             urllib.urlretrieve(img_url_list[count], img)
-            time.sleep(1)
+            #Time delay to help with 503 errors
+            time.sleep(.25)
             count += 1
 def output_html_to_file(url_html):
     #This code will output the html of the search page
