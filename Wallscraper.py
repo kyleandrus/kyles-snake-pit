@@ -5,6 +5,7 @@ Created on Aug 1, 2012
 '''
 
 import os 
+import time
 import re 
 import sys 
 import urllib 
@@ -145,6 +146,7 @@ def get_imgs(img_name_list, img_url_list):
         else:
             print 'Retrieving wallpaper', img_name_list.index(img) + 1, img
             urllib.urlretrieve(img_url_list[count], img)
+            time.sleep(1)
             count += 1
 def output_html_to_file(url_html):
     #This code will output the html of the search page
