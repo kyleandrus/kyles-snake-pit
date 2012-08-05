@@ -178,6 +178,8 @@ def dl_favorites(dest_dir = ''):
     Once this directory is checked it downloads the images to a directory matching the 
     name of the category within the directory'''
     
+    #If the chosen directory doesn't exist, create it
+    dir_check(dest_dir)
     #Code to set variables for login and search functions
     login_vals = {'usrname': 'andrusk', 'pass': 'p0w3rus3r', 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
     login_data = urllib.urlencode(login_vals)
@@ -203,11 +205,7 @@ def dl_favorites(dest_dir = ''):
     print 'Please type the name of the favorites folder you would like to download now e.g. Minimalist'
     print fav_src_dict.keys()
     user_choice = raw_input()
-    #If the chosen directory doesn't exist, create it
-    dir_check(dest_dir)
-#    if os.path.exists(os.path.abspath(dest_dir)) == False:
-#        print 'Favorites directory didn\'t exist, creating...'
-#        os.makedirs(os.path.join(dest_dir))
+
     if user_choice == '':
         print "Please type something"
     count = 1
