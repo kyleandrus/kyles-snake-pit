@@ -31,12 +31,15 @@ if cj is not None:
         opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
         urllib2.install_opener(opener)
         
+#Creating a dictionary to store the urls etc...
+img_names_dict = {}
+
 def dir_check(directory):
     '''This method checks whether a directory exists or not, if it doesn't, it creates it for you'''
     if os.path.exists(os.path.abspath(directory)):
         return True
     else:
-        print 'Favorites directory didn\'t exist, creating...'
+        print 'Directory didn\'t exist, creating...'
         os.makedirs(os.path.join(directory))
 def login_vals():
     '''Not yet implemented'''
@@ -55,14 +58,12 @@ def search_options(query = '', board ='0', nsfw ='111', res='0', res_opt='0', as
     search_query = ({'query': query, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
                        'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': section, '1': 1})
     return urllib.urlencode(search_query)
-def wallbase_search(dest_dir = '.', search_query='', url = '', start_range = 0, max_range = 2000):
+def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, max_range = 2000):
     """
-    This Method open the wallbase main search page, performs a query and fills lists with
-    matches for images that it retrieves based on the query from the host server
-    usage: 
-    wallbase_search(query) -- user defined query built from search_options
-    wallbase_search('', 'http://wallbase.cc/customurl) --A query performed against a specific page will ignore any search query 
+    This method initiates the downloads and matches, uses a counter and range, along with queries for searches
     """
+    if start_range != 0:
+        max_range = max_range - start_range
     #check if the directory exists or not
     dir_check(dest_dir)
     print dest_dir
@@ -71,89 +72,83 @@ def wallbase_search(dest_dir = '.', search_query='', url = '', start_range = 0, 
     while count <= max_range:
         #Used to reset the url to it's original base after the loop'
         temp_url = url
-        #The request need values passed, but since we're not logging in
-        #or sending queries we just send blank data in the req
-        blank_vals = {}
-        blank_data = urllib.urlencode(blank_vals)
-        search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc/search'}
-        #Lists that will contain all of the urls found in the main search page 
-        #as well as the associated filename of the source image
-        img_src_name = []
-        img_src_url = []
-        #Instantiate an object to hold the html text from the webpage
-        #Build a request using the search query values and header info
-        #Build a request using the user inputed url
         if url == '':
             url = 'http://wallbase.cc/search/' + str(count)
-#            req = Request(url, search_query, search_headers)
-#            search_url = urlopen(req)
         elif start_range != 0:
             url = url + '/' + str(start_range)
         else:
             url = url + '/' + str(count)
-        search_req = Request(url, search_query, search_headers)
-        search_url = urlopen(search_req)
-        #Populate an object with the source html
-        url_html = search_url.read()
-        output_html_to_file(url_html, dest_dir)
-        #Regular expression used to find valid wallpaper urls within the index.html
-        matchs = re.findall(r'http://wallbase.cc/wallpaper/\d+', url_html)
-        #Verifying to the user what url we're grabbing from
-        #Perform a request and regex for each src to get the src url
         print "We are looking for wallpapers in the url:",  url
-        print 'Currently processing matches'
-        for match in matchs:
-            while True:
-                try:
-                    #Time delay to try and stop 503 messages
-                    time.sleep(.25)
-                    img_src_req = Request(match, blank_data, search_headers)
-                    img_src_open = urlopen(img_src_req)
-                    img_src_html = img_src_open.read()
-                    #Locating the wallpapers img src url and appending the src and name to lists
-                    img_match_src = re.search(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)', img_src_html)
-                    if img_match_src:
-                        img_src_name.append(img_match_src.group(1))
-                        img_src_url.append(img_match_src.group(0))
-                        print 100 * int(matchs.index(match) +1)/int(len(matchs)), '% complete'
-                    else:
-                        print 'Error: No img_src\'s found. Make sure you logged in.'
-                except urllib2.URLError:
-                    print "Webserver error encounted\nWaiting to try again"
-                    time.sleep(120)
-                    continue
-                break
-        if count > 0 and len(img_src_name) == 0:
-            print 'No matches found\n"END OF LINE, PROGRAM"'
-            sys.exit()
-        print len(img_src_name), " Matches successfully made."
-        #raw_input("\nPress enter to download your wallpapers!")
+        match_imgs(url, dest_dir, search_query, count)
         print "Deploying ninjas to steal wallpapers"
         count += 32
         start_range += 32
         url = temp_url
         #Call to method used to actually download the images
-        get_imgs(img_src_name, img_src_url, dest_dir)
-def get_imgs(img_name_list, img_url_list, dest_dir = '.'):
+        #Use the dictionary to call the next method
+        get_imgs(img_names_dict, dest_dir)
+    if count >= max_range:
+        print 'Max range reached, stopping downloads'
+def match_imgs(url, dest_dir, search_query, count):
+    blank_vals = {}
+    blank_data = urllib.urlencode(blank_vals)
+    search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc/search'}
+    search_req = Request(url, search_query, search_headers)
+    search_url = urlopen(search_req)
+    #Populate an object with the source html
+    url_html = search_url.read()
+    output_html_to_file(url_html, dest_dir)
+    #Regular expression used to find valid wallpaper urls within the index.html
+    matchs = re.findall(r'http://wallbase.cc/wallpaper/\d+', url_html)
+    print 'Currently processing matches'
+    for match in matchs:
+        while True:
+            try:
+                #Time delay to try and stop 503 messages
+                time.sleep(.25)
+                img_src_req = Request(match, blank_data, search_headers)
+                img_src_open = urlopen(img_src_req)
+                img_src_html = img_src_open.read()
+                #Locating the wallpapers img src url and appending the src and name to lists
+                img_match_src = re.search(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)', img_src_html)
+                if img_match_src:
+                    img_names_dict[img_match_src.group(1)] = img_match_src.group(0)
+#                    print img_names_dict.get(img_match_src.group(1))
+                    print 100 * int(matchs.index(match) +1)/int(len(matchs)), '% complete'
+                else:
+                    print 'Error: No img_src\'s found. Make sure you logged in.'
+            except urllib2.URLError:
+                print "Webserver error encounted\nWaiting to try again"
+                time.sleep(120)
+                continue
+            break
+    if count > 0 and len(img_names_dict) == 0:
+        print 'No matches found\n"END OF LINE, PROGRAM"'
+        sys.exit()
+    print len(img_names_dict), " Matches successfully made."
+def get_imgs(img_names_dict, dest_dir = '.'):
     """This method is used to retrieve images from a list of urls,
     saves them to your hard drive, and if they already exist skips the download."""
     #If the chosen directory doesn't exist, create it
     dir_check(dest_dir)
-    count = 0
+    match_count = 1
+    success_count = 0
     #Iterate through the loop and download images in the lists
-    for img in img_name_list:
+    for img in img_names_dict:
         #Check whether the file already exists or not, if yes, skip
         if os.path.isfile(os.path.join(dest_dir, img)):
-            print 'File already exists, skipping'
+            print 'File %d, %s already exists' % (match_count, img)
         else:
-            print 'Retrieving wallpaper', img_name_list.index(img) + 1, img
-            urllib.urlretrieve(img_url_list[count], os.path.join(dest_dir, img))
+            print 'Retrieving wallpaper ' + str(match_count), img
+            urllib.urlretrieve(img_names_dict.get(img), os.path.join(dest_dir, img))
             #Time delay to help with 503 errors
             time.sleep(1)
-            count += 1
-    if count:
-        print count, 'successful downloads'
-    print "End of list! Rolling over"
+            success_count += 1
+        match_count +=1
+    if success_count:
+        print success_count, 'successful downloads'
+    print "End of list! Flushing temporary urls..."
+    img_names_dict.clear()
 def output_html_to_file(url_html, dest_dir = '.'):
     #This code will output the html of the search page, needs fed a req.open()
     dir_check(dest_dir)
@@ -183,6 +178,8 @@ def dl_favorites(dest_dir = ''):
     Once this directory is checked it downloads the images to a directory matching the 
     name of the category within the directory'''
     #Code to set variables for login and search functions
+    #This is needed here becuase you can't download images from favorites without loggin in
+    #Should probably move this to a method of it's own to just return the fav_list_html file
     login_vals = {'usrname': 'andrusk', 'pass': 'p0w3rus3r', 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
     login_data = urllib.urlencode(login_vals)
     http_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc http://wallbase.cc/user/adult_confirm/1 '} 
@@ -190,8 +187,7 @@ def dl_favorites(dest_dir = ''):
     fav_req = Request(favorites_url, login_data, http_headers)
     fav_resp = urlopen(fav_req)
     fav_list_html = fav_resp.read()
-    cj.save(COOKIEFILE)
-    
+
     #Begin matching the favorites urls and their names
     fav_src_dict ={}
     fav_src_url = re.findall(r'(http://wallbase.cc/user/favorites/\d+)" class="collink"><span class="counter">\d+</span>\s\w+\s*\w*', fav_list_html)
@@ -209,9 +205,6 @@ def dl_favorites(dest_dir = ''):
     user_choice = raw_input()
     #If the chosen directory doesn't exist, create it
     dir_check(dest_dir)
-#    if os.path.exists(os.path.abspath(dest_dir)) == False:
-#        print 'Favorites directory didn\'t exist, creating...'
-#        os.makedirs(os.path.join(dest_dir))
     if user_choice == '':
         print "Please type something"
     count = 1
@@ -224,15 +217,28 @@ def dl_favorites(dest_dir = ''):
             sys.exit()
     else:
         dest_dir = os.path.join(dest_dir, user_choice)
-#        Check if the directory the user wants to save to exists, if not, create it.
-        if os.path.exists(dest_dir):
-            print 'Beginning download'
-#            wallbase_search(dest_dir, '', fav_src_dict[user_choice]) 
-        else:
-            print 'Favorites category doesn\'t exist: creating...\nBeginning download...'
-            os.makedirs(dest_dir)
-        wallbase_search(dest_dir, '', fav_src_dict[user_choice])
+        #Check if the favorites directory exists
+        dir_check(dest_dir)
+        download_walls(dest_dir, '', fav_src_dict[user_choice])
     return fav_src_dict
+def dl_search(dest_dir, query_string, board = '', nsfw = '111', res='0', res_opt='0', aspect='0',
+               orderby='0', orderby_opt='0', thpp='32', start_range = 0, max_range = 2000):
+    #If dest_dir is blank, enter a custom dir
+    search_query = ({'query': query_string, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
+                       'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': 'wallpapers', '1': 1})
+    encoded_query = urllib.urlencode(search_query)
+    if dest_dir == '':
+        print ('What directory would you like to save your queries to?\nQueries will automatically be saved in a folder named after the query\ne.g. c:\\"searches"\\"Kate Backinsale"')
+        dest_dir = raw_input()
+    if query_string.isalnum() == False:
+        new_query_dir = ''.join(e for e in query_string if e.isalnum())
+        print new_query_dir
+        dir_check(os.path.join(dest_dir, new_query_dir))   
+        dest_dir = os.path.join(dest_dir, new_query_dir)
+    else:
+        dir_check(os.path.join(dest_dir, query_string)) 
+        dest_dir = os.path.join(dest_dir, query_string)   
+    download_walls(dest_dir, encoded_query, '', start_range, max_range)
 def logout():
     '''This sub-method when invoked will clear all cookies
         stored by this method and effectively log the user out.
@@ -259,7 +265,9 @@ either use a string for a search e.g. 'Kate'
 or you can use a wallbase specific tag in 
 its place e.g. 'tag:9383'
 '''
-search_query = search_options('tag:9383')
+#search_query = search_options('tag:9383')
 
 #dl_favorites('')#'c:\wallbase\favorites')
-wallbase_search(r'', search_query,'', 0, 2000)
+dl_search('', 'tag:9383')
+
+#download_walls(r'', search_query,'', 0, 2000)
