@@ -46,7 +46,7 @@ def login_vals():
     user_dict = {username: password}
     print user_dict
     return user_dict
-def search_options(query = '', board ='0', nsfw ='100', res='0', res_opt='0', aspect='0', orderby='0', orderby_opt='0', thpp='32', section= 'wallpapers'):
+def search_options(query = '', board ='0', nsfw ='111', res='0', res_opt='0', aspect='0', orderby='0', orderby_opt='0', thpp='32', section= 'wallpapers'):
     '''
     This method populates a urllib encoded data stream used in the request of search URLs.
     usage: 
@@ -130,7 +130,7 @@ def wallbase_search(dest_dir = '.', search_query='', url = '', start_range = 0, 
         #raw_input("\nPress enter to download your wallpapers!")
         print "Deploying ninjas to steal wallpapers"
         count += 32
-        start_range +=32
+        start_range += 32
         url = temp_url
         #Call to method used to actually download the images
         get_imgs(img_src_name, img_src_url, dest_dir)
@@ -160,7 +160,7 @@ def output_html_to_file(url_html, dest_dir = '.'):
     filename = 'page.html'
     FILE = open(os.path.join(dest_dir,filename), "w")
     FILE.writelines(url_html)
-    print os.path.join(dest_dir, filename)
+    print "HTML file written to:\n", os.path.abspath(os.path.join(dest_dir, filename))
     FILE.close()   
 def wallbase_auth(username, password):
     '''The following code takes user variables and logs you into wallbase.
@@ -261,5 +261,5 @@ its place e.g. 'tag:9383'
 '''
 search_query = search_options('tag:9383')
 
-dl_favorites(r'Z:\internets\wallbase\favorites')
-#wallbase_search(r'', search_query,'', '', 2000)
+#dl_favorites('')#'c:\wallbase\favorites')
+wallbase_search(r'', search_query,'', 0, 2000)
