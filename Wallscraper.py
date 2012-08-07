@@ -12,9 +12,6 @@ import urllib
 import urllib2
 import cookielib
 
-#Create cookie file, bind variables to openeners and requesters
-#This simplifies the typing and makes it easier to make the script
-#cross platform
 COOKIEFILE = 'cookies.lwp'
 urlopen = urllib2.urlopen
 Request = urllib2.Request
@@ -31,6 +28,8 @@ if cj is not None:
         opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
         urllib2.install_opener(opener)
         
+
+
 #Creating a dictionary to store the urls etc...
 img_names_dict = {}
 
@@ -54,10 +53,46 @@ def search_options(query = '', board ='0', nsfw ='111', res='0', res_opt='0', as
     This method populates a urllib encoded data stream used in the request of search URLs.
     usage: 
     '''
+    print "+" * 95 + '\n' + "#" * 95 + "\nIn the next series of questions, please choose the search options you would like to use.\nIn all cases, leaving the field blank and pressing enter will use the default value of 'all'\n" + "#" * 95 + '\n' + "+" * 95 + '\n'
+    if query:
+        print "+" * 95 + '\n' + "Pre-selected query detected\nYou are searching for:", query, "\n" + "+" * 95 +'\n'
+    if not query:
+        print "#" * 95 + '\n' + "What are you searching for?\nCan be 'tag:XXXX', or \"Kate Beckinsale\", or blank for 'new' wallpapersetc...\nUse \"\" to make the search specific, otherwise any words in the query will match\n" + "#" * 95 
+        query = raw_input()
+        if query =='':
+            query = ''
+
+    print "#" *95 + "\nWhat purity setting do you want to use? (default is 110)\nFirst bit allows SFW images, second bit allows Sketchy images, third bit allows NSFW images\ne.g. if you want to see only Sketchy and NSFW you will input 011. If you want only SFW images 100\n" + "#" * 95
+    nsfw = raw_input()
+    if nsfw == '':
+        nsfw = '110'
+    if nsfw[-1] == '1':
+        print "+" * 32 + 'Login required for nsfw images' + "+" *33 + '\nPlease enter your username:'
+        user = raw_input()
+        print 'Please enter your password:'
+        passw = raw_input()
+        wallbase_auth(user, passw)
+    print "#" * 95 + "\nWhich Aspect Ratio do you want to filter by?\n Accepted values are 'blank' => All | 1.33 => 4:3 | 1.25 => 5:4 | 1.77 => 16:9 | 1.60 => 16:10 |\n 1.70 => Netbook | 2.50 => Dual | 3.20 => Dual Wide | 0.99 => Portrait\n" + "#" * 95
+    aspect = raw_input()
+    if aspect =='':
+        aspect = '0'
+    print "#" * 95 + '\nHow do you want your wallpapers ordered? Input one of the following to choose:\n date, views, favs, relevance (default = date)\n' + "#" * 95
+    orderby = raw_input()
+    if orderby == '':
+        orderby = 'date'
+    print "#" * 95 + '\n' + "Please specify an start range of wallpers to download:\nTypically this is 0, default is 0\nYou can use this to pick up where you left off if you stopped dl's previously\n"+ "#" * 95
+    start_range = raw_input()
+    if start_range =='':
+        start_range =0
+    print "#" * 95 + '\n' + "Please specify an end range of wallpers to download:\ndefault is 2000\n"+ "#" * 95
+    max_range = raw_input()
+    if max_range =='':
+        max_range = 2000
+    start_range = 0
     #Populate the search_query with new values if the user doesn't want to use the default ones.)
     search_query = ({'query': query, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
                        'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': section, '1': 1})
-    return urllib.urlencode(search_query)
+    return urllib.urlencode(search_query), query, start_range, max_range
 def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, max_range = 2000):
     """
     This method initiates the downloads and matches, uses a counter and range, along with queries for searches
@@ -66,7 +101,7 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
         max_range = max_range - start_range
     #check if the directory exists or not
     dir_check(dest_dir)
-    print dest_dir
+    print 'Files being saved to:\n', os.path.abspath(dest_dir)
     #Implement a counter so you can download up to the maximum range 
     count = 0
     while count <= max_range:
@@ -78,7 +113,7 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
             url = url + '/' + str(start_range)
         else:
             url = url + '/' + str(count)
-        print "We are looking for wallpapers in the url:",  url
+        print "We are looking for wallpapers in the url:\n",  url
         match_imgs(url, dest_dir, search_query, count)
         print "Deploying ninjas to steal wallpapers"
         count += 32
@@ -93,8 +128,16 @@ def match_imgs(url, dest_dir, search_query, count):
     blank_vals = {}
     blank_data = urllib.urlencode(blank_vals)
     search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc/search'}
-    search_req = Request(url, search_query, search_headers)
-    search_url = urlopen(search_req)
+    search_req = urllib2.Request(url, search_query, search_headers)
+    while True:
+        try:
+            search_url = urllib2.urlopen(search_req)
+        except urllib2.HTTPError as detail:
+            print "%s error encountered\nWaiting to try again" %(detail)
+            time.sleep(30)
+            continue
+        break
+    
     #Populate an object with the source html
     url_html = search_url.read()
     output_html_to_file(url_html, dest_dir)
@@ -106,8 +149,8 @@ def match_imgs(url, dest_dir, search_query, count):
             try:
                 #Time delay to try and stop 503 messages
                 time.sleep(.25)
-                img_src_req = Request(match, blank_data, search_headers)
-                img_src_open = urlopen(img_src_req)
+                img_src_req = urllib2.Request(match, blank_data, search_headers)
+                img_src_open = urllib2.urlopen(img_src_req)
                 img_src_html = img_src_open.read()
                 #Locating the wallpapers img src url and appending the src and name to lists
                 img_match_src = re.search(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)', img_src_html)
@@ -117,9 +160,9 @@ def match_imgs(url, dest_dir, search_query, count):
                     print 100 * int(matchs.index(match) +1)/int(len(matchs)), '% complete'
                 else:
                     print 'Error: No img_src\'s found. Make sure you logged in.'
-            except urllib2.URLError:
-                print "Webserver error encounted\nWaiting to try again"
-                time.sleep(120)
+            except urllib2.URLError as detail:
+                print "%s error encounted\nWaiting to try again" %(detail)
+                time.sleep(30)
                 continue
             break
     if count > 0 and len(img_names_dict) == 0:
@@ -167,11 +210,12 @@ def wallbase_auth(username, password):
     login_url = 'http://wallbase.cc/user/login'
     login_data = urllib.urlencode(login_vals)
     http_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'http://wallbase.cc/start/'}   
-    req = Request(login_url, login_data, http_headers)
+    req = urllib2.Request(login_url, login_data, http_headers)
     #Needed for wallbase to recognize that I"m logged in
-    resp = urlopen(req)
+    resp = urllib2.urlopen(req)
     #Save cookie with login info
     cj.save(COOKIEFILE)
+    print 'User %s logged in' %(username)
 def dl_favorites(dest_dir = ''):
     '''Calls to this method download a category of favorites wallpapers from 
     a users wallbase account. The only argument it takes is a destination directory. 
@@ -180,12 +224,17 @@ def dl_favorites(dest_dir = ''):
     #Code to set variables for login and search functions
     #This is needed here becuase you can't download images from favorites without loggin in
     #Should probably move this to a method of it's own to just return the fav_list_html file
+    print "#" * 95 + '\n' + "+" * 32 + 'Login required to dl favorites' + "+" *33 + "\n" + "#" * 95 + '\n' + 'Please enter your username:'
+    user = raw_input()
+    print "Please enter your password:"
+    passw = raw_input()
+    wallbase_auth(user, passw)
     login_vals = {'usrname': 'andrusk', 'pass': 'p0w3rus3r', 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
     login_data = urllib.urlencode(login_vals)
     http_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc http://wallbase.cc/user/adult_confirm/1 '} 
     favorites_url = 'http://wallbase.cc/user/favorites'
-    fav_req = Request(favorites_url, login_data, http_headers)
-    fav_resp = urlopen(fav_req)
+    fav_req = urllib2.Request(favorites_url, login_data, http_headers)
+    fav_resp = urllib2.urlopen(fav_req)
     fav_list_html = fav_resp.read()
 
     #Begin matching the favorites urls and their names
@@ -198,11 +247,12 @@ def dl_favorites(dest_dir = ''):
         count +=1
     #If dest_dir is blank, enter a custom dir
     if dest_dir == '':
-        print ('Please enter the path you wish to use for your favorites e.g. c:\\favorites\nPress enter to use the current directory of the python interpreter')
+        print "#" * 95 + '\n' + ('Please enter the path you wish to use for your favorites e.g. c:\\favorites\nLeave blank use the current directory of the Python interpreter\n') + "#" * 95  
         dest_dir = raw_input()
-    print 'Please type the name of the favorites folder you would like to download now e.g. Minimalist'
+    print "#" * 95 + '\n' + 'Please type the name of the favorites folder you would like to download now e.g. Minimalist\n' +"#" * 95
     print fav_src_dict.keys()
-    user_choice = raw_input()
+    user_choice = raw_input() 
+    print  "#" * 95
     #If the chosen directory doesn't exist, create it
     dir_check(dest_dir)
     if user_choice == '':
@@ -221,18 +271,20 @@ def dl_favorites(dest_dir = ''):
         dir_check(dest_dir)
         download_walls(dest_dir, '', fav_src_dict[user_choice])
     return fav_src_dict
-def dl_search(dest_dir, query_string, board = '', nsfw = '111', res='0', res_opt='0', aspect='0',
-               orderby='0', orderby_opt='0', thpp='32', start_range = 0, max_range = 2000):
+#def dl_search(dest_dir, query_string, board = '', nsfw = '111', res='0', res_opt='0', aspect='0',
+#               orderby='0', orderby_opt='0', thpp='32', start_range = 0, max_range = 2000):
+def dl_search(dest_dir, query_string ='', ):
+    '''This method let's you pick search options for your query. 
+    You can leave both arguments blank and you will be asked to provide a query and a destination directory during the selection process.
+    usage: dl_search('c:\wallbase', 'Kate Beckinsale') or dl_search()'''
+    encoded_query, query, start_range, max_range = search_options(query_string)
     #If dest_dir is blank, enter a custom dir
-    search_query = ({'query': query_string, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
-                       'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': 'wallpapers', '1': 1})
-    encoded_query = urllib.urlencode(search_query)
     if dest_dir == '':
-        print ('What directory would you like to save your queries to?\nQueries will automatically be saved in a folder named after the query\ne.g. c:\\"searches"\\"Kate Backinsale"')
+        print ("#" * 95 + '\n' + 'What directory would you like to save your queries to?\nQueries will automatically be saved in a folder named after the query\ne.g. c:\\"searches"\n' + "#" * 95)
         dest_dir = raw_input()
+    query_string = query
     if query_string.isalnum() == False:
         new_query_dir = ''.join(e for e in query_string if e.isalnum())
-        print new_query_dir
         dir_check(os.path.join(dest_dir, new_query_dir))   
         dest_dir = os.path.join(dest_dir, new_query_dir)
     else:
@@ -247,27 +299,31 @@ def logout():
     cj.clear_session_cookies()
     print 'You have been logged out'
     
-'''
-            USER LOGIN   
-The following section performs an 
-authentication of the user on wallbase
-If you attempt a search without 
-authenticating you will be unable to download 
-favorites or nsfw. Enter login information 
-in the form of ('username', 'password')
-'''
-wallbase_auth('andrusk', 'p0w3rus3r')
-       
-'''
-            SEARCH QUERY
-When creating a search query you may 
-either use a string for a search e.g. 'Kate'
-or you can use a wallbase specific tag in 
-its place e.g. 'tag:9383'
-'''
-#search_query = search_options('tag:9383')
+#Uncomment these if you want to run the commands directly wihtout involving the command line.
+#dl_favorites('')
+#dl_search(r'', '')
 
-#dl_favorites('')#'c:\wallbase\favorites')
-dl_search('', 'tag:9383')
-
-#download_walls(r'', search_query,'', 0, 2000)
+def main():    
+    # Make a list of command line arguments, omitting the [0] element
+    # which is the script itself.
+    args = sys.argv[1:]
+    if not args:
+        print "usage: [--favorites][--search]"; 
+        sys.exit(1)
+    # todir and tozip are either set from command line
+    # or left as the empty string.
+    # The args array is left just containing the dirs.
+    fdest_dir = ''
+    sdest_dir = ''
+    query_string = ''
+    if len(args) == 0:
+        print "error: must specify one or more dirs"
+        sys.exit(1)
+    elif args[0] == '--favorites':
+        dl_favorites(fdest_dir)
+        del args[0:0]
+    elif args[0] == '--search':
+        dl_search(sdest_dir, query_string)
+        del args[0:0]
+if __name__ == "__main__":
+        main()
