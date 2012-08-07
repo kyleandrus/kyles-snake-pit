@@ -305,18 +305,15 @@ def logout():
     
 #Uncomment these if you want to run the commands directly wihtout involving the command line.
 #dl_favorites('')
-#dl_search(r'', '')
-
-#dl_favorites('')
-dl_search('','')
+#dl_search('','')
 
 def main():    
     # Make a list of command line arguments, omitting the [0] element
     # which is the script itself.
     args = sys.argv[1:]
     if not args:
-        print "usage: [--favorites][--search]"; 
-        sys.exit(1)
+        print "\nProper usage: [--favorites][--search]\nDefaulting to search..."; 
+        dl_search('','')
     # todir and tozip are either set from command line
     # or left as the empty string.
     # The args array is left just containing the dirs.
@@ -324,13 +321,13 @@ def main():
     sdest_dir = ''
     query_string = ''
     if len(args) == 0:
-        print "error: must specify one or more dirs"
-        sys.exit(1)
+        dl_search('','')
     elif args[0] == '--favorites':
         dl_favorites(fdest_dir)
         del args[0:0]
     elif args[0] == '--search':
         dl_search(sdest_dir, query_string)
         del args[0:0]
+        
 if __name__ == "__main__":
         main()
