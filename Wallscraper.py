@@ -83,20 +83,20 @@ def search_options(query = '', board ='0', nsfw ='111', res='0', res_opt='0', as
     print "#" * 95 + '\n' + "Please specify an start range of wallpers to download:\nTypically this is 0, default is 0\nYou can use this to pick up where you left off if you stopped dl's previously\n"+ "#" * 95
     start_range = raw_input()
     if start_range =='':
-        start_range =0
+        start_range = 0
     print "#" * 95 + '\n' + "Please specify an end range of wallpers to download:\ndefault is 2000\n"+ "#" * 95
     max_range = raw_input()
     if max_range =='':
         max_range = 2000
-    start_range = 0
     #Populate the search_query with new values if the user doesn't want to use the default ones.)
     search_query = ({'query': query, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
                        'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': section, '1': 1})
-    return urllib.urlencode(search_query), query, start_range, max_range
+    return urllib.urlencode(search_query), query, int(start_range), int(max_range)
 def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, max_range = 2000):
     """
     This method initiates the downloads and matches, uses a counter and range, along with queries for searches
     """
+    #Fix this method, it's not looping correctly when max-range is changed etc...
     if start_range != 0:
         max_range = max_range - start_range
     #check if the directory exists or not
@@ -104,15 +104,17 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
     print 'Files being saved to:\n', os.path.abspath(dest_dir)
     #Implement a counter so you can download up to the maximum range 
     count = 0
+    print start_range, max_range
     while count <= max_range:
         #Used to reset the url to it's original base after the loop'
         temp_url = url
         if url == '':
-            url = 'http://wallbase.cc/search/' + str(count)
-        elif start_range != 0:
-            url = url + '/' + str(start_range)
-        else:
-            url = url + '/' + str(count)
+            url = 'http://wallbase.cc/search/' + str(start_range)
+            #Don't know if i need this or not
+#        elif start_range != 0:
+#            url = url + '/' + str(start_range)
+#        else:
+#            url = url + '/' + str(count)
         print "We are looking for wallpapers in the url:\n",  url
         match_imgs(url, dest_dir, search_query, count)
         print "Deploying ninjas to steal wallpapers"
@@ -124,6 +126,7 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
         get_imgs(img_names_dict, dest_dir)
     if count >= max_range:
         print 'Max range reached, stopping downloads'
+        sys.exit(1)
 def match_imgs(url, dest_dir, search_query, count):
     blank_vals = {}
     blank_data = urllib.urlencode(blank_vals)
@@ -289,7 +292,8 @@ def dl_search(dest_dir, query_string ='', ):
         dest_dir = os.path.join(dest_dir, new_query_dir)
     else:
         dir_check(os.path.join(dest_dir, query_string)) 
-        dest_dir = os.path.join(dest_dir, query_string)   
+        dest_dir = os.path.join(dest_dir, query_string)
+    print start_range, max_range
     download_walls(dest_dir, encoded_query, '', start_range, max_range)
 def logout():
     '''This sub-method when invoked will clear all cookies
@@ -302,6 +306,9 @@ def logout():
 #Uncomment these if you want to run the commands directly wihtout involving the command line.
 #dl_favorites('')
 #dl_search(r'', '')
+
+#dl_favorites('')
+dl_search('','')
 
 def main():    
     # Make a list of command line arguments, omitting the [0] element
