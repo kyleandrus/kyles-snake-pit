@@ -27,8 +27,6 @@ if cj is not None:
     #This installs the cookie Jar into the opener for fetching URLs
         opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
         urllib2.install_opener(opener)
-        
-
 
 #Creating a dictionary to store the urls etc...
 img_names_dict = {}
@@ -96,38 +94,25 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
     """
     This method initiates the downloads and matches, uses a counter and range, along with queries for searches
     """
-    #Fix this method, it's not looping correctly when max-range is changed etc...
-    if start_range != 0:
-        max_range = max_range - start_range
     #check if the directory exists or not
     dir_check(dest_dir)
     print 'Files being saved to:\n', os.path.abspath(dest_dir)
     #Implement a counter so you can download up to the maximum range 
-    count = 0
-    print start_range, max_range
-    while count <= max_range:
+    while start_range <= max_range:
         #Used to reset the url to it's original base after the loop'
         temp_url = url
-        if url == '':
-            url = 'http://wallbase.cc/search/' + str(start_range)
-            #Don't know if i need this or not
-#        elif start_range != 0:
-#            url = url + '/' + str(start_range)
-#        else:
-#            url = url + '/' + str(count)
+        url = url + '/' + str(start_range)
         print "We are looking for wallpapers in the url:\n",  url
-        match_imgs(url, dest_dir, search_query, count)
+        start_range = match_imgs(url, dest_dir, search_query, start_range, max_range)
         print "Deploying ninjas to steal wallpapers"
-        count += 32
-        start_range += 32
         url = temp_url
         #Call to method used to actually download the images
         #Use the dictionary to call the next method
-        get_imgs(img_names_dict, dest_dir)
-    if count >= max_range:
+        get_imgs(img_names_dict, start_range, dest_dir)
+    if start_range >= max_range:
         print 'Max range reached, stopping downloads'
         sys.exit(1)
-def match_imgs(url, dest_dir, search_query, count):
+def match_imgs(url, dest_dir, search_query, start_range, max_range):
     blank_vals = {}
     blank_data = urllib.urlencode(blank_vals)
     search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc/search'}
@@ -146,9 +131,27 @@ def match_imgs(url, dest_dir, search_query, count):
     output_html_to_file(url_html, dest_dir)
     #Regular expression used to find valid wallpaper urls within the index.html
     matchs = re.findall(r'http://wallbase.cc/wallpaper/\d+', url_html)
+    active_walls = re.search(r'a\sactive"><span>(\d+)\D*(\d*)', url_html)
+#    active_walls = re.search(r'>(\d+)\D*(\d*)', url_html)
+    try:
+        if active_walls.group(2) == '0':
+            num_of_walls = active_walls.group(1) 
+        else:
+            num_of_walls = active_walls.group(1) + active_walls.group(2)
+    except AttributeError:
+        try:
+            active_walls = re.search(r'count\s\S\s(\d+)', url_html)
+            num_of_walls = active_walls.group(1)
+        except AttributeError:
+            print 'number of wallpapers not found'
+ 
     print 'Currently processing matches'
+    if int(num_of_walls) > max_range:
+        print '%d wallpapers found\n%d queued for download' %(int(num_of_walls), max_range - start_range +1)
+    elif max_range > int(num_of_walls):
+        print 'Found %d wallpapers\nDownloading %d wallpapers' % (int(num_of_walls), int(num_of_walls)) 
     for match in matchs:
-        while True:
+        while True and start_range <= max_range:
             try:
                 #Time delay to try and stop 503 messages
                 time.sleep(.25)
@@ -159,8 +162,16 @@ def match_imgs(url, dest_dir, search_query, count):
                 img_match_src = re.search(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)', img_src_html)
                 if img_match_src:
                     img_names_dict[img_match_src.group(1)] = img_match_src.group(0)
+                    
 #                    print img_names_dict.get(img_match_src.group(1))
-                    print 100 * int(matchs.index(match) +1)/int(len(matchs)), '% complete'
+#                    print 100 * int(matchs.index(match) +1)/(start_range), '% complete'
+#                    if int(matchs.index(match+1))
+#                    print 100 * int(matchs.index(match) +1)/int(len(matchs)), '% complete'
+                    if max_range < int(num_of_walls):
+                        print "matched: ",  start_range +1 , '/', max_range
+                    else:
+                        print "matched: ", start_range +1, '/', int(num_of_walls)
+                    start_range +=1
                 else:
                     print 'Error: No img_src\'s found. Make sure you logged in.'
             except urllib2.URLError as detail:
@@ -168,33 +179,44 @@ def match_imgs(url, dest_dir, search_query, count):
                 time.sleep(30)
                 continue
             break
-    if count > 0 and len(img_names_dict) == 0:
-        print 'No matches found\n"END OF LINE, PROGRAM"'
+    if start_range >= 0 and len(img_names_dict) == 0:
+        print 'All wallpapers downloaded or already exist\nNo more matches found:"END OF LINE, PROGRAM"'
         sys.exit()
-    print len(img_names_dict), " Matches successfully made."
-def get_imgs(img_names_dict, dest_dir = '.'):
+    else: print len(img_names_dict), " Matches successfully made."
+    if len(img_names_dict) < 32:
+        return (start_range + (32 - len(img_names_dict)))
+    else:
+        return start_range
+def get_imgs(img_names_dict, start_range, dest_dir = ''):
     """This method is used to retrieve images from a list of urls,
     saves them to your hard drive, and if they already exist skips the download."""
     #If the chosen directory doesn't exist, create it
     dir_check(dest_dir)
-    match_count = 1
+    match_count = 0
     success_count = 0
+    #The 32 below is because the thpp is set to 32, should make this dynamic
+    if start_range < 32:
+        start_range -=  start_range
+    elif start_range >= 32:
+        start_range -= 32
     #Iterate through the loop and download images in the lists
     for img in img_names_dict:
         #Check whether the file already exists or not, if yes, skip
         if os.path.isfile(os.path.join(dest_dir, img)):
-            print 'File %d, %s already exists' % (match_count, img)
+            print 'File %d, %s already exists' % (start_range +1, img)
         else:
-            print 'Retrieving wallpaper ' + str(match_count), img
+            print 'Retrieving wallpaper %d' %(start_range +1)
             urllib.urlretrieve(img_names_dict.get(img), os.path.join(dest_dir, img))
             #Time delay to help with 503 errors
             time.sleep(1)
             success_count += 1
+        start_range +=1
         match_count +=1
     if success_count:
         print success_count, 'successful downloads'
     print "End of list! Flushing temporary urls..."
     img_names_dict.clear()
+    return success_count
 def output_html_to_file(url_html, dest_dir = '.'):
     #This code will output the html of the search page, needs fed a req.open()
     dir_check(dest_dir)
@@ -293,8 +315,7 @@ def dl_search(dest_dir, query_string ='', ):
     else:
         dir_check(os.path.join(dest_dir, query_string)) 
         dest_dir = os.path.join(dest_dir, query_string)
-    print start_range, max_range
-    download_walls(dest_dir, encoded_query, '', start_range, max_range)
+    download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', start_range, max_range)
 def logout():
     '''This sub-method when invoked will clear all cookies
         stored by this method and effectively log the user out.
@@ -303,10 +324,8 @@ def logout():
     cj.clear_session_cookies()
     print 'You have been logged out'
     
-#Uncomment these if you want to run the commands directly wihtout involving the command line.
-#dl_favorites('')
+dl_favorites('')
 #dl_search('','')
-
 def main():    
     # Make a list of command line arguments, omitting the [0] element
     # which is the script itself.
