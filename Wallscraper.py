@@ -147,7 +147,7 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range):
  
     print 'Currently processing matches'
     if int(num_of_walls) > max_range:
-        print '%d wallpapers found\n%d queued for download' %(int(num_of_walls), max_range - start_range +1)
+        print '%d wallpapers found\n%d queued for download' %(int(num_of_walls), max_range - start_range)
     elif max_range > int(num_of_walls):
         print 'Found %d wallpapers\nDownloading %d wallpapers' % (int(num_of_walls), int(num_of_walls)) 
     for match in matchs:
@@ -324,7 +324,7 @@ def logout():
     cj.clear_session_cookies()
     print 'You have been logged out'
     
-dl_favorites('')
+#dl_favorites('')
 #dl_search('','')
 def main():    
     # Make a list of command line arguments, omitting the [0] element
