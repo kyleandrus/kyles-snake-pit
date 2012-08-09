@@ -147,9 +147,11 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range):
  
     print 'Currently processing matches'
     if int(num_of_walls) > max_range:
-        print '%d wallpapers found\n%d queued for download' %(int(num_of_walls), max_range - start_range)
-    elif max_range > int(num_of_walls):
-        print 'Found %d wallpapers\nDownloading %d wallpapers' % (int(num_of_walls), int(num_of_walls)) 
+        print '%d wallpapers found\n%d queued for dl, out of %d' %(int(num_of_walls), max_range - start_range, max_range)
+    elif (max_range > int(num_of_walls)) and (int(num_of_walls)-start_range) > 0:
+#        print 'Found %d wallpapers\nDownloading %d wallpapers' % (int(num_of_walls), int(num_of_walls)) 
+        print 'Found %d wallpapers\nDownloading %d wallpapers' % (int(num_of_walls), int(num_of_walls)-start_range) 
+
     for match in matchs:
         while True and start_range <= max_range:
             try:
@@ -180,7 +182,7 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range):
                 continue
             break
     if start_range >= 0 and len(img_names_dict) == 0:
-        print 'All wallpapers downloaded or already exist\nNo more matches found:"END OF LINE, PROGRAM"'
+        print 'All wallpapers downloaded or already exist\n:"END OF LINE, TRON"'
         sys.exit()
     else: print len(img_names_dict), " Matches successfully made."
     if len(img_names_dict) < 32:
