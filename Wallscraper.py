@@ -2,6 +2,10 @@
 Created on Aug 1, 2012
 
 @author: kandrus
+The purpose of this script is to allow a user to automatically download
+all wallpapers that match a user specified query, or wallpapers that are 
+contained within their custom favorites collections from the website http://wallbase.cc
+The downloading of favorites, or nsfw images is restricted to registered users.
 '''
 
 import os 
