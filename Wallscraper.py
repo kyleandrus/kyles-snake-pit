@@ -46,21 +46,28 @@ def login_vals():
     user_dict = {username: password}
     print user_dict
     return user_dict
-def search_options(query = '', board ='0', nsfw ='111', res='0', res_opt='0', aspect='0', orderby='0', orderby_opt='0', thpp='32', section= 'wallpapers'):
+def search_options(query = '', board ='0', nsfw ='111', res='0', res_opt='0',\
+                     aspect='0', orderby='0', orderby_opt='0', thpp='32', section= 'wallpapers'):
     '''
     This method populates a urllib encoded data stream used in the request of search URLs.
     usage: 
     '''
-    print "+" * 95 + '\n' + "#" * 95 + "\nIn the next series of questions, please choose the search options you would like to use.\nIn all cases, leaving the field blank and pressing enter will use the default value of 'all'\n" + "#" * 95 + '\n' + "+" * 95 + '\n'
+    print "+" * 95 + '\n' + "#" * 95 + "\nIn the next series of questions, please choose the search options"\
+    " you would like to use.\nIn all cases, leaving the field blank and pressing enter will use the default "\
+    "value of 'all'\n" + "#" * 95 + '\n' + "+" * 95 + '\n'
     if query:
         print "+" * 95 + '\n' + "Pre-selected query detected\nYou are searching for:", query, "\n" + "+" * 95 +'\n'
     if not query:
-        print "#" * 95 + '\n' + "What are you searching for?\nCan be 'tag:XXXX', or \"Kate Beckinsale\", or blank for 'new' wallpapersetc...\nUse \"\" to make the search specific, otherwise any words in the query will match\n" + "#" * 95 
+        print "#" * 95 + '\n' + "What are you searching for?\nCan be 'tag:XXXX', or \"Kate Beckinsale\", "\
+        "or blank for 'new' wallpapersetc...\nUse \"\" to make the search specific, otherwise any words in"\
+        " the query will match\n" + "#" * 95 
         query = raw_input()
         if query =='':
             query = ''
 
-    print "#" *95 + "\nWhat purity setting do you want to use? (default is 110)\nFirst bit allows SFW images, second bit allows Sketchy images, third bit allows NSFW images\ne.g. if you want to see only Sketchy and NSFW you will input 011. If you want only SFW images 100\n" + "#" * 95
+    print "#" *95 + "\nWhat purity setting do you want to use? (default is 110)\nFirst bit allows SFW images, "\
+    "second bit allows Sketchy images, third bit allows NSFW images\ne.g. if you want to see only Sketchy and "\
+    "NSFW you will input 011. If you want only SFW images 100\n" + "#" * 95
     nsfw = raw_input()
     if nsfw == '':
         nsfw = '110'
@@ -70,15 +77,19 @@ def search_options(query = '', board ='0', nsfw ='111', res='0', res_opt='0', as
         print 'Please enter your password:'
         passw = raw_input()
         wallbase_auth(user, passw)
-    print "#" * 95 + "\nWhich Aspect Ratio do you want to filter by?\n Accepted values are 'blank' => All | 1.33 => 4:3 | 1.25 => 5:4 | 1.77 => 16:9 | 1.60 => 16:10 |\n 1.70 => Netbook | 2.50 => Dual | 3.20 => Dual Wide | 0.99 => Portrait\n" + "#" * 95
+    print "#" * 95 + "\nWhich Aspect Ratio do you want to filter by?\n Accepted values are 'blank' => All | 1.33 => 4:3 |"\
+    " 1.25 => 5:4 | 1.77 => 16:9 | 1.60 => 16:10 |\n 1.70 => Netbook | 2.50 => Dual | 3.20 => Dual Wide | 0.99 => "\
+    "Portrait\n" + "#" * 95
     aspect = raw_input()
     if aspect =='':
         aspect = '0'
-    print "#" * 95 + '\nHow do you want your wallpapers ordered? Input one of the following to choose:\n date, views, favs, relevance (default = date)\n' + "#" * 95
+    print "#" * 95 + '\nHow do you want your wallpapers ordered? Input one of the following to choose:\n date, views, favs,'\
+    ' relevance (default = date)\n' + "#" * 95
     orderby = raw_input()
     if orderby == '':
         orderby = 'date'
-    print "#" * 95 + '\n' + "Please specify an start range of wallpers to download:\nTypically this is 0, default is 0\nYou can use this to pick up where you left off if you stopped dl's previously\n"+ "#" * 95
+    print "#" * 95 + '\n' + "Please specify an start range of wallpers to download:\nTypically this is 0, default is 0"\
+    "\nYou can use this to pick up where you left off if you stopped dl's previously\n"+ "#" * 95
     start_range = raw_input()
     if start_range =='':
         start_range = 0
@@ -182,7 +193,7 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range):
                 continue
             break
     if start_range >= 0 and len(img_names_dict) == 0:
-        print 'All wallpapers downloaded or already exist\n:"END OF LINE, TRON"'
+        print 'All wallpapers downloaded or already exist:\n"END OF LINE, TRON"'
         sys.exit()
     else: print len(img_names_dict), " Matches successfully made."
     if len(img_names_dict) < 32:
@@ -256,7 +267,7 @@ def dl_favorites(dest_dir = ''):
     print "Please enter your password:"
     passw = raw_input()
     wallbase_auth(user, passw)
-    login_vals = {'usrname': 'andrusk', 'pass': 'p0w3rus3r', 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
+    login_vals = {'usrname': user, 'pass': passw, 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
     login_data = urllib.urlencode(login_vals)
     http_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc http://wallbase.cc/user/adult_confirm/1 '} 
     favorites_url = 'http://wallbase.cc/user/favorites'
