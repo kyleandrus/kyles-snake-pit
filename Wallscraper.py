@@ -15,6 +15,7 @@ import sys
 import urllib 
 import urllib2
 import cookielib
+from ConfigParser import *
 
 
 #Installing the CookieJar - This will make the urlopener bound to the CookieJar.
@@ -50,6 +51,73 @@ def dir_check(directory):
     else: #create the path for the user and tell the user the name of the path
         print '%s | didn\'t exist, creating...' %(os.path.abspath(directory))
         os.makedirs(os.path.join(directory))
+def dest_check(dest_dir, query_name):
+    #Removes any spaces or non alnum characters from the directory and creates the directory
+    #(Windows doesn't like special characters or spaces in directory names)
+    if query_name.isalnum() == False:
+        new_query_dir = ''.join(e for e in query_name if e.isalnum())
+        dir_check(os.path.join(dest_dir, new_query_dir))   
+        dest_dir = os.path.join(dest_dir, new_query_dir)
+        query_file = new_query_dir + '.ini'
+    else:
+        dir_check(os.path.join(dest_dir, query_name)) 
+        dest_dir = os.path.join(dest_dir, query_name)
+        query_file = query_name + '.ini'
+    
+    return dest_dir
+
+def search_config(dest_dir, search_query):
+    #Temporary placeholder for a query
+#    search_query = ({'query': 'anime girls', 'board': 0, 'nsfw': 110, 'res': 0, 'res_opt': 0, 'aspect': 0, 
+#                   'orderby': "favs", 'orderby_opt': 0, 'thpp':32, 'section': 'wallpapers', '1': 1, 'start_range' : 0, 'max_range' : 2000, 'query_name': 'anime girls'})
+    query_name = search_query['query_name']
+    
+    #instantiate c as a configparser class
+    c = ConfigParser()
+    
+    #Removes any spaces or non alnum characters from the directory and creates the directory
+    #(Windows doesn't like special characters or spaces in directory names)
+    if query_name.isalnum() == False:
+        new_query_dir = ''.join(e for e in query_name if e.isalnum())
+        dir_check(os.path.join(dest_dir, new_query_dir))   
+        dest_dir = os.path.join(dest_dir, new_query_dir)
+        query_file = new_query_dir + '.ini'
+    else:
+        dir_check(os.path.join(dest_dir, query_name)) 
+        dest_dir = os.path.join(dest_dir, query_name)
+        query_file = query_name + '.ini'
+    
+
+    #Code to read the configuration file and set variables to match what's in the config
+    #Check if an ini file exists in the dest_dir, if yes, ask to load the config and re-do the search
+    print os.path.abspath(dest_dir)
+    list_files = os.listdir(dest_dir)
+    if query_file in list_files:
+        print 'Configuration exists!!'    
+        c.read(query_file)
+        for section in c.sections():
+            print section
+            query_name = section
+            for option in c.options(section):
+                search_query[option] = c.get(section, option)
+                print "\t", option, "=", c.get(section, option)
+        #Return the variables set from the config file to the dl_search method
+        return urllib.urlencode(search_query), search_query['query'], search_query['start_range'], search_query['max_range'], dest_dir
+#        print c.get(query_name)
+
+    #use this code to create the file if it doesn't already exist
+    else:
+        c.add_section(query_name)
+        count = 0
+        for each in search_query:
+#            print each, search_query[each], 
+            c.set(query_name, each, search_query[each])
+            count += 1
+        FILE = open(os.path.abspath(os.path.join(dest_dir, query_file)), "w")
+        c.write(FILE)
+        print "\nConfig file written to\n", os.path.abspath(os.path.join(dest_dir, query_file))
+        FILE.close()   
+ 
 def search_options(query = ''):
     '''
     This method populates a urllib encoded data stream used in the request of search URLs.
@@ -68,7 +136,16 @@ def search_options(query = ''):
     print "+" * 80 + '\n' + "#" * 80 + "\nIn the next series of questions, please choose the search options"\
     " you would like\n to use.In all cases, leaving the field blank and pressing enter will use the \ndefault "\
     "value of 'all'\n" + "#" * 80 + '\n' + "+" * 80 + '\n'
-    if query:
+    
+    #
+    #
+    #    Need to figure out a way pull from the configuration file, and feed that info back out into the download
+    #
+    #
+    if query == '$configuration':
+        encoded_query, query, start_range, max_range, dest_dir = search_config(dest_dir)
+        
+    elif query:
         print "+" * 80 + '\n' + "Pre-selected query detected\nYou are searching for:", query, "\n" + "+" * 80 +'\n'
     if not query:
         print "#" * 80 + '\n' + "What are you searching for?\nCan be 'tag:XXXX', or \"Kate Beckinsale\", "\
@@ -111,8 +188,12 @@ def search_options(query = ''):
         max_range = 2000
         
     #Populate the search_query with values input by the user as well as the default ones
+    #
+    #    Need to move this into the conditional statement so that if you're using a conf file this get's passed into it. or returned from it.
+    #
+    #
     search_query = ({'query': query, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
-                       'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': section, '1': 1})
+                       'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': section, '1': 1, 'start_range' : start_range, 'max_range' : max_range, 'query_name': query})
     
     #Return the encoded search string for requests, the actual query string, and the range of the search
     return urllib.urlencode(search_query), query, int(start_range), int(max_range)
@@ -379,33 +460,41 @@ def dl_favorites(dest_dir = ''):
     
         #call to actually begin downloads of the favorites
         download_walls(dest_dir, '', fav_src_dict[user_choice])
-def dl_search(dest_dir, query_string ='', ):
+def dl_search(dest_dir, query_string =''):
     '''This method let's you pick search options for your query. 
     You can leave both arguments blank and you will be asked to provide a query and a destination directory during the selection process.
     usage: dl_search('c:\wallbase', 'Kate Beckinsale') or dl_search()'''
-  
-    #A call to the search options that returns to this method values for the encoded query
-    #The query string itself, and start and max numbers
-    encoded_query, query, start_range, max_range = search_options(query_string)
+
    
     #If dest_dir is blank, enter a custom dir
     if dest_dir == '':
         print ("#" * 80 + '\n' + 'What directory would you like to save your queries to?\nQueries will automatically be saved in a folder named after the query\ne.g. c:\\"searches"\n' + "#" * 80)
         dest_dir = raw_input()
-    query_string = query
-   
-    #Removes any spaces or non alnum characters from the directory and creates the directory
-    #(Windows doesn't like special characters or spaces in directory names)
-    if query_string.isalnum() == False:
-        new_query_dir = ''.join(e for e in query_string if e.isalnum())
-        dir_check(os.path.join(dest_dir, new_query_dir))   
-        dest_dir = os.path.join(dest_dir, new_query_dir)
+         
+
+    #Used to run a query from a configuration file
+    #
+    #    Need to fix this so that it pulls query data first, then feeds it to search_config
+    #    do this by modifiying the search_options to not prompt on certain conditions and 
+    #    return something different then when prompting
+    #
+    #
+    print 'Would you like to check for a configuration file in %s' %(os.path.abspath(dest_dir)) + '?'
+    choice = raw_input()
+    if choice == 'y' or choice == 'yes':
+        print 'configuration management selected'
+        encoded_query, query, start_range, max_range, dest_dir = search_config(dest_dir)
     else:
-        dir_check(os.path.join(dest_dir, query_string)) 
-        dest_dir = os.path.join(dest_dir, query_string)
-  
+        #A call to the search options that returns to this method values for the encoded query
+        #The query string itself, and start and max numbers
+        #Else run the standard prompts to create a query
+        encoded_query, query, start_range, max_range = search_options(query_string)
+        dest_dir = dest_check(dest_dir, query)
+
+
     #call to begin actual download of the wallpapers
-    download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', start_range, max_range)
+    download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(start_range), int(max_range))
+    
 def logout():
     '''This sub-method when invoked will clear all cookies
         stored by this method and effectively log the user out.
@@ -437,10 +526,12 @@ def main():
     elif args[0] == '--search':
         dl_search(sdest_dir, query_string)
         del args[0:0]
-        
-#uncomment to run the main method from the console        
-if __name__ == "__main__":
-    '''If the scripts initiates itself, run the main method
-    this prevent the main from being called if this module is 
-    imported into another script'''
-    main()
+
+#search_config('./animegirls/AnimeGirls.txt')        
+dl_search('', '')
+##uncomment to run the main method from the console        
+#if __name__ == "__main__":
+#    '''If the scripts initiates itself, run the main method
+#    this prevent the main from being called if this module is 
+#    imported into another script'''
+#    main()
