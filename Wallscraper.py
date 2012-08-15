@@ -483,7 +483,7 @@ def dl_search(dest_dir, query_string =''):
     choice = raw_input()
     if choice == 'y' or choice == 'yes':
         print 'configuration management selected'
-        encoded_query, query, start_range, max_range, dest_dir = search_config(dest_dir)
+        encoded_query, query, start_range, max_range, dest_dir = search_config(dest_dir) #will need to change this to search options once the condition is built
     else:
         #A call to the search options that returns to this method values for the encoded query
         #The query string itself, and start and max numbers
