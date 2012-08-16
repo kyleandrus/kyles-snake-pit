@@ -15,7 +15,7 @@ import sys
 import urllib 
 import urllib2
 import cookielib
-from ConfigParser import *
+import ConfigParser
 
 
 #Installing the CookieJar - This will make the urlopener bound to the CookieJar.
@@ -51,30 +51,9 @@ def dir_check(directory):
     else: #create the path for the user and tell the user the name of the path
         print '%s | didn\'t exist, creating...' %(os.path.abspath(directory))
         os.makedirs(os.path.join(directory))
-def dest_check(dest_dir, query_name):
-    #Removes any spaces or non alnum characters from the directory and creates the directory
-    #(Windows doesn't like special characters or spaces in directory names)
-    if query_name.isalnum() == False:
-        new_query_dir = ''.join(e for e in query_name if e.isalnum())
-        dir_check(os.path.join(dest_dir, new_query_dir))   
-        dest_dir = os.path.join(dest_dir, new_query_dir)
-        query_file = new_query_dir + '.ini'
-    else:
-        dir_check(os.path.join(dest_dir, query_name)) 
-        dest_dir = os.path.join(dest_dir, query_name)
-        query_file = query_name + '.ini'
-    
-    return dest_dir
+def search_config(dest_dir, search_query, query_name = '', new_ini = False):
 
-def search_config(dest_dir, search_query):
-    #Temporary placeholder for a query
-#    search_query = ({'query': 'anime girls', 'board': 0, 'nsfw': 110, 'res': 0, 'res_opt': 0, 'aspect': 0, 
-#                   'orderby': "favs", 'orderby_opt': 0, 'thpp':32, 'section': 'wallpapers', '1': 1, 'start_range' : 0, 'max_range' : 2000, 'query_name': 'anime girls'})
     query_name = search_query['query_name']
-    
-    #instantiate c as a configparser class
-    c = ConfigParser()
-    
     #Removes any spaces or non alnum characters from the directory and creates the directory
     #(Windows doesn't like special characters or spaces in directory names)
     if query_name.isalnum() == False:
@@ -86,117 +65,164 @@ def search_config(dest_dir, search_query):
         dir_check(os.path.join(dest_dir, query_name)) 
         dest_dir = os.path.join(dest_dir, query_name)
         query_file = query_name + '.ini'
-    
 
+    #Populate a list with the names of files and directories in the dest_dir
+    list_files = os.listdir(dest_dir)
+    
+    #Delete the ini file before creating a new one 
+    if query_file in list_files and new_ini == True:
+        print os.path.join(dest_dir, query_file), " deleted!"
+        os.unlink(os.path.join(dest_dir, query_file))
+        
+    #instantiate c as a configparser class
+    c = ConfigParser.ConfigParser()
+
+ 
     #Code to read the configuration file and set variables to match what's in the config
     #Check if an ini file exists in the dest_dir, if yes, ask to load the config and re-do the search
-    print os.path.abspath(dest_dir)
     list_files = os.listdir(dest_dir)
-    if query_file in list_files:
-        print 'Configuration exists!!'    
-        c.read(query_file)
+    if query_file in list_files and new_ini == False:
+        print 'Loading settings from %s' %(query_file)
+        FILE = open(os.path.abspath(os.path.join(dest_dir, query_file)), "rb")
+        c.readfp(FILE)
+        print 'printing c.sections', c.sections()
         for section in c.sections():
             print section
             query_name = section
             for option in c.options(section):
                 search_query[option] = c.get(section, option)
                 print "\t", option, "=", c.get(section, option)
+                
         #Return the variables set from the config file to the dl_search method
-        return urllib.urlencode(search_query), search_query['query'], search_query['start_range'], search_query['max_range'], dest_dir
-#        print c.get(query_name)
-
+        FILE.close()   
+        return search_query, dest_dir
+        
+ 
     #use this code to create the file if it doesn't already exist
-    else:
+    if dest_dir not in list_files and new_ini == True:
         c.add_section(query_name)
         count = 0
         for each in search_query:
-#            print each, search_query[each], 
+            #print each, search_query[each], 
             c.set(query_name, each, search_query[each])
             count += 1
         FILE = open(os.path.abspath(os.path.join(dest_dir, query_file)), "w")
         c.write(FILE)
-        print "\nConfig file written to\n", os.path.abspath(os.path.join(dest_dir, query_file))
+        print "Config file stored at:\n", os.path.abspath(os.path.join(dest_dir, query_file))
         FILE.close()   
- 
-def search_options(query = ''):
+        return search_query, dest_dir
+  
+    
+def search_options(dest_dir, query = '' ):
     '''
     This method populates a urllib encoded data stream used in the request of search URLs.
     usage: 
     '''
+    ###############################################################################################################
     #default search values not yet implemented into the user prompts they are however 
     #needed for the query, so they're set to wildcards on the server side
+    query = ''
+    nsfw = '110'
+    aspect = '0'
+    orderby = 'date'
+    start_range = 0
+    max_range = 2000
     board = '0' 
     res='0' 
     res_opt='0' 
     orderby_opt='0'
     thpp='32'
     section= 'wallpapers'
+    search_query = ({'query': query, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
+                       'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': section, '1': 1,
+                        'start_range' : start_range, 'max_range' : max_range, 'query_name': query})
+    ###############################################################################################################
+    
     
     #The following are user prompts, used if they want to change the defaults to something more specific
     print "+" * 80 + '\n' + "#" * 80 + "\nIn the next series of questions, please choose the search options"\
     " you would like\n to use.In all cases, leaving the field blank and pressing enter will use the \ndefault "\
     "value of 'all'\n" + "#" * 80 + '\n' + "+" * 80 + '\n'
-    
-    #
-    #
-    #    Need to figure out a way pull from the configuration file, and feed that info back out into the download
-    #
-    #
-    if query == '$configuration':
-        encoded_query, query, start_range, max_range, dest_dir = search_config(dest_dir)
-        
-    elif query:
+    if query != '' :
         print "+" * 80 + '\n' + "Pre-selected query detected\nYou are searching for:", query, "\n" + "+" * 80 +'\n'
     if not query:
         print "#" * 80 + '\n' + "What are you searching for?\nCan be 'tag:XXXX', or \"Kate Beckinsale\", "\
         "or blank for 'new' wallpapersetc...\nUse \"\" to make the search specific, otherwise any words in"\
         " the query will match\n" + "#" * 80 
-        query = raw_input()
-        if query =='':
-            query = ''
-    print "#" *80 + "\nWhat purity setting do you want to use? (default is 110)\nFirst bit allows SFW images, "\
-    "second bit allows Sketchy images, third bit allows\nNSFW images e.g. if you want to see only Sketchy and"\
-    "NSFW you will input 011.\nIf you want only SFW images 100\n" + "#" * 80
-    nsfw = raw_input()
-    if nsfw == '':
-        nsfw = '110'
-    if nsfw[-1] == '1':
-        print "+" * 27 + 'Login required for nsfw images' + "+" *27 + '\nPlease enter your username:'
-        user = raw_input()
-        print 'Please enter your password:'
-        passw = raw_input()
-        wallbase_auth(user, passw)
-    print "#" * 80 + "\nWhich Aspect Ratio do you want to filter by?\nAccepted values are 'blank' => All | 1.33 => 4:3 |"\
-    " 1.25 => 5:4 | 1.77 => 16:9 |\n1.60 => 16:10 | 1.70 => Netbook | 2.50 => Dual | 3.20 => Dual Wide | 0.99 => "\
-    "Port.\n" + "#" * 80
-    aspect = raw_input()
-    if aspect =='':
-        aspect = '0'
-    print "#" * 80 + '\nHow do you want your wallpapers ordered? Input one of the following to choose:\ndate, views, favs,'\
-    ' relevance (default = date)\n' + "#" * 80
-    orderby = raw_input()
-    if orderby == '':
-        orderby = 'date'
-    print "#" * 80 + '\n' + "Please specify an start range of wallpers to download:\nTypically this is 0, default is 0"\
-    "\nYou can use this to pick up where you left off if you stopped dl's previously\n"+ "#" * 80
-    start_range = raw_input()
-    if start_range =='':
-        start_range = 0
-    print "#" * 80 + '\n' + "Please specify an end range of wallpers to download:\ndefault is 2000\n"+ "#" * 80
-    max_range = raw_input()
-    if max_range =='':
-        max_range = 2000
+        search_query['query'] = raw_input()
         
-    #Populate the search_query with values input by the user as well as the default ones
-    #
-    #    Need to move this into the conditional statement so that if you're using a conf file this get's passed into it. or returned from it.
-    #
-    #
-    search_query = ({'query': query, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
-                       'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': section, '1': 1, 'start_range' : start_range, 'max_range' : max_range, 'query_name': query})
-    
-    #Return the encoded search string for requests, the actual query string, and the range of the search
-    return urllib.urlencode(search_query), query, int(start_range), int(max_range)
+        #change this down the line to make tag searches a different folder 
+        search_query['query_name'] = search_query['query']
+        #Error to switch return query if a type error is encountered
+        type_error = False
+        
+        if search_query['query'] =='':
+            search_query['query'] = ''
+        if search_query['query'] != '':
+            print 'Would you like to search for a configuration file? (y or n)'
+            config_choice = raw_input()
+            if config_choice == 'y':
+                try:
+                    search_query, dest_dir = search_config(dest_dir, search_query, search_query['query_name'])
+                    #################################################################################################################
+                    #NSFW check if the call to config was successfull
+                    #S really move the NSFW check to the wallbase auth method
+                    #################################################################################################################
+                    if search_query['nsfw'] == '001' or search_query['nsfw'] == '011' or search_query['nsfw'] == '101' or search_query['nsfw'] == '111':
+                        print "+" * 27 + 'Login required for nsfw images' + "+" *27 + '\nPlease enter your username:'
+                        user = raw_input()
+                        print 'Please enter your password:'
+                        passw = raw_input()
+                        wallbase_auth(user, passw)
+                        #############################################################################################################
+                except TypeError:
+                    type_error = True
+                    print "Search ini not found!\nPlease complete the following questions to create a new query"
+                    search_config(dest_dir, search_query, search_query['query_name'], True)
+                if type_error == False:
+                    return urllib.urlencode(search_query), search_query['start_range'], search_query['max_range'], dest_dir
+                    
+                
+            if config_choice =='n' or type_error == True:
+                print "#" *80 + "\nWhat purity setting do you want to use? (default is 110)\nFirst bit allows SFW images, "\
+                "second bit allows Sketchy images, third bit allows\nNSFW images e.g. if you want to see only Sketchy and"\
+                "NSFW you will input 011.\nIf you want only SFW images 100\n" + "#" * 80
+                search_query['nsfw'] = raw_input()
+                if search_query['nsfw'] == '':
+                    search_query['nsfw'] = '110'
+                if search_query['nsfw'] == '001' or search_query['nsfw'] == '011' or search_query['nsfw'] == '101' or search_query['nsfw'] == '111':
+                    print "+" * 27 + 'Login required for nsfw images' + "+" *27 + '\nPlease enter your username:'
+                    user = raw_input()
+                    print 'Please enter your password:'
+                    passw = raw_input()
+                    wallbase_auth(user, passw)
+                print "#" * 80 + "\nWhich Aspect Ratio do you want to filter by?\nAccepted values are 'blank' => All | 1.33 => 4:3 |"\
+                " 1.25 => 5:4 | 1.77 => 16:9 |\n1.60 => 16:10 | 1.70 => Netbook | 2.50 => Dual | 3.20 => Dual Wide | 0.99 => "\
+                "Port.\n" + "#" * 80
+                search_query['aspect'] = raw_input()
+                if search_query['aspect'] =='':
+                    search_query['aspect'] = '0'
+                print "#" * 80 + '\nHow do you want your wallpapers ordered? Input one of the following to choose:\ndate, views, favs,'\
+                ' relevance (default = date)\n' + "#" * 80
+                search_query['orderby'] = raw_input()
+                if search_query['orderby']  == '':
+                    search_query['orderby']  = 'date'
+                print "#" * 80 + '\n' + "Please specify an start range of wallpers to download:\nTypically this is 0, default is 0"\
+                "\nYou can use this to pick up where you left off if you stopped dl's previously\n"+ "#" * 80
+                search_query['start_range'] = raw_input()
+                if search_query['start_range'] =='':
+                    search_query['start_range'] = 0
+                print "#" * 80 + '\n' + "Please specify an end range of wallpers to download:\ndefault is 2000\n"+ "#" * 80
+                search_query['max_range'] = raw_input()
+                if search_query['max_range'] =='':
+                    search_query['max_range'] = 2000
+                    
+                #Populate the search_query with values input by the user as well as the default ones
+                search_query, dest_dir = search_config(dest_dir, search_query, search_query['query'], True)
+                
+                
+                #Return the encoded search string for requests, the actual query string, and the range of the search
+                return urllib.urlencode(search_query), search_query['start_range'], search_query['max_range'], dest_dir
 def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, max_range = 2000):
     """
     This method initiates the downloads the html matches urls, and uses a counter and range to limit the downloads
@@ -470,27 +496,8 @@ def dl_search(dest_dir, query_string =''):
     if dest_dir == '':
         print ("#" * 80 + '\n' + 'What directory would you like to save your queries to?\nQueries will automatically be saved in a folder named after the query\ne.g. c:\\"searches"\n' + "#" * 80)
         dest_dir = raw_input()
-         
-
-    #Used to run a query from a configuration file
-    #
-    #    Need to fix this so that it pulls query data first, then feeds it to search_config
-    #    do this by modifiying the search_options to not prompt on certain conditions and 
-    #    return something different then when prompting
-    #
-    #
-    print 'Would you like to check for a configuration file in %s' %(os.path.abspath(dest_dir)) + '?'
-    choice = raw_input()
-    if choice == 'y' or choice == 'yes':
-        print 'configuration management selected'
-        encoded_query, query, start_range, max_range, dest_dir = search_config(dest_dir) #will need to change this to search options once the condition is built
-    else:
-        #A call to the search options that returns to this method values for the encoded query
-        #The query string itself, and start and max numbers
-        #Else run the standard prompts to create a query
-        encoded_query, query, start_range, max_range = search_options(query_string)
-        dest_dir = dest_check(dest_dir, query)
-
+        dest_dir = os.path.abspath(dest_dir) 
+        encoded_query, start_range, max_range, dest_dir = search_options(dest_dir)    
 
     #call to begin actual download of the wallpapers
     download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(start_range), int(max_range))
@@ -527,11 +534,11 @@ def main():
         dl_search(sdest_dir, query_string)
         del args[0:0]
 
-#search_config('./animegirls/AnimeGirls.txt')        
-dl_search('', '')
+#dl_search('', '')
+#dl_favorites('')
 ##uncomment to run the main method from the console        
-#if __name__ == "__main__":
-#    '''If the scripts initiates itself, run the main method
-#    this prevent the main from being called if this module is 
-#    imported into another script'''
-#    main()
+if __name__ == "__main__":
+    '''If the scripts initiates itself, run the main method
+    this prevent the main from being called if this module is 
+    imported into another script'''
+    main()
