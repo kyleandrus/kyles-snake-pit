@@ -19,7 +19,7 @@ import ConfigParser
 
 
 #Installing the CookieJar - This will make the urlopener bound to the CookieJar.
-#This way, any urls that are opened will handle cookies appropratiely
+#This way, any urls that are opened will handle cookies appropriately 
 #Has to be at a global level so I can save the cookie from different methods
 #There's probably a cleaner way to do this.
 COOKIEFILE = 'cookies.lwp'
@@ -207,7 +207,7 @@ def search_options(dest_dir, query = '' ):
                 search_query['orderby'] = raw_input()
                 if search_query['orderby']  == '':
                     search_query['orderby']  = 'date'
-                print "#" * 80 + '\n' + "Please specify an start range of wallpers to download:\nTypically this is 0, default is 0"\
+                print "#" * 80 + '\n' + "Please specify a start range of wallpers to download:\nTypically this is 0, default is 0"\
                 "\nYou can use this to pick up where you left off if you stopped dl's previously\n"+ "#" * 80
                 search_query['start_range'] = raw_input()
                 if search_query['start_range'] =='':
