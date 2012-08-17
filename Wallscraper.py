@@ -85,14 +85,14 @@ def search_config(dest_dir, search_query, query_name = '', new_ini = False):
         print 'Loading settings from %s' %(query_file)
         FILE = open(os.path.abspath(os.path.join(dest_dir, query_file)), "rb")
         c.readfp(FILE)
-        print 'printing c.sections', c.sections()
+        print '#'*40 + '\nQuery file contents\n' + '#' *40
         for section in c.sections():
             print section
             query_name = section
             for option in c.options(section):
                 search_query[option] = c.get(section, option)
                 print "\t", option, "=", c.get(section, option)
-                
+        print '#'*40
         #Return the variables set from the config file to the dl_search method
         FILE.close()   
         return search_query, dest_dir
@@ -157,7 +157,9 @@ def search_options(dest_dir, query = '' ):
         type_error = False
         
         if search_query['query'] =='':
-            search_query['query'] = ''
+            print 'Non-keyword query detected!\nPlease choose how you want to sort the query below'
+            search_query['query'] = ' '
+            search_query['query_name'] = 'Non-Keyword Query'
         if search_query['query'] != '':
             print 'Would you like to search for a configuration file? (y or n)'
             config_choice = raw_input()
@@ -183,7 +185,7 @@ def search_options(dest_dir, query = '' ):
                     return urllib.urlencode(search_query), search_query['start_range'], search_query['max_range'], dest_dir
                     
                 
-            if config_choice =='n' or type_error == True:
+            if config_choice =='n' or config_choice == '' or type_error == True:
                 print "#" *80 + "\nWhat purity setting do you want to use? (default is 110)\nFirst bit allows SFW images, "\
                 "second bit allows Sketchy images, third bit allows\nNSFW images e.g. if you want to see only Sketchy and"\
                 "NSFW you will input 011.\nIf you want only SFW images 100\n" + "#" * 80
@@ -283,6 +285,30 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range):
     
     #Regular expression used to find valid wallpaper urls within the index.html
     matchs = re.findall(r'http://wallbase.cc/wallpaper/\d+', url_html)
+    #####
+    #####    Experimental regex used to match the entire string of url and purity filter
+    #####    into 1 giant tuple
+    #matchs = re.findall(r'(http://wallbase.cc/wallpaper/(\d+))+(id="\w+\d+")>', url_html)
+
+    ##################################################################################
+    ##    Experimental code for matching the purity filter to an image so we
+    ##    can download the image to a different folder if so desired
+    ##
+    ##
+#    purity_match = re.findall(r'id="[^del]\w+_(\d+)">', url_html)
+#    for match in matchs:
+#        print match
+#    for match in purity_match:
+#        print match
+#    sys.exit()
+#    
+#    ##
+    ##
+    ##
+    ##
+    ##
+    ##    END OF EXPERIMENTAL CODE
+    ##################################################################################
     
     #regex that finds the number of search results, up to a billion
     active_walls = re.search(r'a\sactive"><span>(\d+),*(\d*),*(\d*)', url_html)
