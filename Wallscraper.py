@@ -47,7 +47,7 @@ def dir_check(directory):
     
     #Essentially do nothing if the path exists
     if os.path.exists(os.path.abspath(directory)):
-        return True
+        return directory
     else: #create the path for the user and tell the user the name of the path
         print '%s | didn\'t exist, creating...' %(os.path.abspath(directory))
         os.makedirs(os.path.join(directory))
@@ -80,7 +80,6 @@ def search_config(dest_dir, search_query, query_name = '', new_ini = False):
  
     #Code to read the configuration file and set variables to match what's in the config
     #Check if an ini file exists in the dest_dir, if yes, ask to load the config and re-do the search
-    list_files = os.listdir(dest_dir)
     if query_file in list_files and new_ini == False:
         print 'Loading settings from %s' %(query_file)
         FILE = open(os.path.abspath(os.path.join(dest_dir, query_file)), "rb")
@@ -281,6 +280,7 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range):
     
     #Populate an object with the source html
     url_html = search_url.read()
+    print dest_dir
     output_html_to_file(url_html, dest_dir)
     
     #Regular expression used to find valid wallpaper urls within the index.html
@@ -425,9 +425,14 @@ def get_imgs(img_names_dict, start_range, dest_dir = ''):
 def output_html_to_file(url_html, dest_dir = '.'):
     
     #This code will output the html of the search page, needs fed a req.open()
+    print "output to html destination dir: ", dest_dir
     dir_check(dest_dir)
     filename = 'page.html'
-    FILE = open(os.path.join(dest_dir,filename), "w")
+    try:
+        FILE = open(os.path.join(dest_dir,filename), "w")
+    except TypeError:
+        dir_check(dest_dir)
+        FILE = open(os.path.join(dest_dir, filename), 'w')
     FILE.writelines(url_html)
     print "HTML file written to:\n", os.path.abspath(os.path.join(dest_dir, filename))
     FILE.close()   
@@ -512,11 +517,102 @@ def dl_favorites(dest_dir = ''):
     
         #call to actually begin downloads of the favorites
         download_walls(dest_dir, '', fav_src_dict[user_choice])
+def dl_config(config_file):
+    '''This method allows you to kick of a query without going through any user prompts
+    by simply feeding it a configuration file location and telling it to go.
+    Can ONLY be called via the command line. Currently works, however it won't handle
+    running the method if the ini file doesn't exist. Need to make it more robust'''
+    
+    ###############################################################################################################
+    #default search values used to generate the ini files 
+    #needed for the query, so they're set to wildcards on the server side
+    query = ''
+    nsfw = '110'
+    aspect = '0'
+    orderby = 'date'
+    start_range = 0
+    max_range = 2000
+    board = '0' 
+    res='0' 
+    res_opt='0' 
+    orderby_opt='0'
+    thpp='32'
+    section= 'wallpapers'
+    username = ''
+    password = ''
+    dest_dir = ''
+    search_query = ({'query': query, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
+                       'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': section, '1': 1,
+                        'start_range' : start_range, 'max_range' : max_range, 'query_name': query})
+    user_vars = ({'destination_directory': dest_dir, 'username': username, 'password': password})
+    ###############################################################################################################
+    
+    #pull the destination directory from the config file
+    #Need to add a second setcion to the file with the user variables
+    #If the called ini file doesn't exist, create it using placeholder values
+    #so that the user can then input the values they want
+        
+    #instantiate c as a configparser class
+    c = ConfigParser.ConfigParser()
+
+    
+    #Populate a list with the names of files and directories in the dest_dir
+#    list_files = os.listdir(dest_dir)
+    if os.path.exists(config_file):
+        
+ 
+        #Code to read the configuration file and set variables to match what's in the config
+        #Check if an ini file exists in the dest_dir, if yes, ask to load the config and re-do the search
+        print 'Loading settings from %s' %(config_file)
+        FILE = open(os.path.abspath(config_file), "rb")
+        c.readfp(FILE)
+        print '#'*40 + '\nQuery file contents\n' + '#' *40
+        if c.has_section('Search Query'):
+            print 'Search Query'
+            for option in c.options('Search Query'):
+                search_query[option] = c.get('Search Query', option)
+                print "\t", option, "=", c.get('Search Query', option)
+        if c.has_section('User Options'):
+            print 'User Options'
+            for option in c.options('User Options'):
+                user_vars[option] = c.get('User Options', option)
+                print "\t", option, '=', c.get('User Options', option)
+#        sys.exit()
+        print '#'*40
+        #Return the variables set from the config file to the dl_search method
+        FILE.close()   
+        
+        
+        
+#Make the following code robust enough to create a default ini if it doesn't exist
+#as well as move the custom search ini to the destination direcotry if it does already exist
+#perhaps prompt the user about where they would like to store the ini? Don't know          
+#     
+#    #use this code to create the file if it doesn't already exist
+#    if dest_dir not in list_files and new_ini == True:
+#        c.add_section(query_name)
+#        count = 0
+#        for each in search_query:
+#            #print each, search_query[each], 
+#            c.set(query_name, each, search_query[each])
+#            count += 1
+#        FILE = open(os.path.abspath(os.path.join(dest_dir, query_file)), "w")
+#        c.write(FILE)
+#        print "Config file stored at:\n", os.path.abspath(os.path.join(dest_dir, query_file))
+#        FILE.close()   
+#        return search_query, dest_dir
+        
+    encoded_query = urllib.urlencode(search_query)
+    dest_dir = user_vars['destination_directory']
+    dir_check(dest_dir)
+    wallbase_auth(user_vars['username'], user_vars['password'])
+    download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']))
+    
+    
 def dl_search(dest_dir, query_string =''):
     '''This method let's you pick search options for your query. 
     You can leave both arguments blank and you will be asked to provide a query and a destination directory during the selection process.
     usage: dl_search('c:\wallbase', 'Kate Beckinsale') or dl_search()'''
-
    
     #If dest_dir is blank, enter a custom dir
     if dest_dir == '':
@@ -544,12 +640,13 @@ def main():
     
     #If no argruments are given, print proper usage and call the search method
     if not args:
-        print "\nProper usage: [--favorites][--search]\nDefaulting to search..."; 
+        print "\nProper usage: [--favorites][--search][--config c:\config_file.ini]\nDefaulting to search..."; 
         dl_search('','')
     
     #Default values passed to the method when called through a command line argument
     fdest_dir = ''
     sdest_dir = ''
+    config_file = ''
     query_string = ''
     if len(args) == 0:
         dl_search('','')
@@ -559,9 +656,14 @@ def main():
     elif args[0] == '--search':
         dl_search(sdest_dir, query_string)
         del args[0:0]
+    elif args[0] == '--config':
+        config_file = args[1]
+        dl_config(config_file)
+        
 
 #dl_search('', '')
 #dl_favorites('')
+#dl_config('Custom_Search.ini')
 ##uncomment to run the main method from the console        
 if __name__ == "__main__":
     '''If the scripts initiates itself, run the main method
