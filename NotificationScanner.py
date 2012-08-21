@@ -6,7 +6,8 @@ trans-id unit test
 This python script reads in a series a notification files
 that are generated from the consoleone.exe and searches the
 files for duplicates. If there are duplicates, the user is 
-notified and the duplicate is shown
+notified, the duplicate is shown, and a log file is generated
+in the same directory as the notification logs
 '''
 import os 
 import re 
