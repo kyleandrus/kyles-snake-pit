@@ -53,10 +53,9 @@ def trans_id_match(not_log_dir):
             if duplicate_count[match] >= 0:
                 duplicate_count[match] +=1
                 trans_ids[match + " duplicate-" + str(duplicate_count[match]) ] = not_file 
-        
-    #Outputs to the user the Transaction ID of a duplicate transaction as well as the 
+        FILE.close()
+    #Outputs to the user and the log file the Transaction ID of a duplicate transaction as well as the 
     #number of duplicates and the location of the Transaction ID in the notification file
-    #If the log generator is functioning properly, you should see nothing from the code below
     duplicate_dict = {}
     print "Transaction IDS:"
     count = 0   
@@ -70,12 +69,13 @@ def trans_id_match(not_log_dir):
     if count == 0:
         success_string = "No Duplicate ID(s) found, Success!"
         print success_string
+        print len(trans_ids), ' unique Transaction ID(s)'
         logger.info(success_string)
     del count
-    FILE.close()
+#    FILE.close()
     return duplicate_dict
             
-#trans_id_match(r'C:\Log\Processor-KylesPyMatchTest\Notification')
+trans_id_match(r'C:\Log\Processor-KylesPyMatchTest\Notification')
 
 
 def main():
@@ -94,11 +94,7 @@ def main():
         print "\n\nYou must use a directory to proceed!"
     elif args[0] != '':
         not_log_dir = args[0]
-        
-        while True:
-            print "Press ctrl+c to stop scanning Notification files"
-            trans_id_match(not_log_dir)
-            time.sleep(600)
+        trans_id_match(not_log_dir)
         del args[0:0]
         
 ##uncomment to run the main method from the console        
