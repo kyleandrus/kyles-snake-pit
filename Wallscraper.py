@@ -43,6 +43,9 @@ if cj is not None:
 #as well as the url of that file. Global so that it can be accessed
 #by any methods in the script.
 img_names_dict = {}
+#Used in multiple methods for purity list checks
+purity_list = ('NSFW','SKETCHY', "SFW")
+
 def dir_check(directory):
     '''This method checks whether a directory exists or not, if it doesn't, it creates it for you'''
     
@@ -52,6 +55,7 @@ def dir_check(directory):
     else: #create the path for the user and tell the user the name of the path
         print '%s | didn\'t exist, creating...' %(os.path.abspath(directory))
         os.makedirs(os.path.join(directory))
+
 def search_config(dest_dir, search_query, query_name = '', new_ini = False):
 
     query_name = search_query['query_name']
@@ -225,7 +229,7 @@ def search_options(dest_dir, query = '' ):
                 
                 #Return the encoded search string for requests, the actual query string, and the range of the search
                 return urllib.urlencode(search_query), search_query['start_range'], search_query['max_range'], dest_dir
-def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, max_range = 2000):
+def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, max_range = 2000, dl_to_diff_folders = "False"):
     """
     This method initiates the downloads the html matches urls, and uses a counter and range to limit the downloads
     """
@@ -247,7 +251,7 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
         print "We are looking for wallpapers in the url:\n",  url
         
         #Begin matching imgs in the html and pull the start number out of the resultant matches
-        start_range = match_imgs(url, dest_dir, search_query, start_range, max_range)
+        start_range = match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_folders)
         
         #reset the url since the match is completed
         url = temp_url
@@ -260,7 +264,7 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
     if start_range >= max_range: #Stop downloads if max range is reached
         print 'Max range reached, stopping downloads'
         sys.exit(1)
-def match_imgs(url, dest_dir, search_query, start_range, max_range):
+def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_folders = "False"):
 
     #url requests need values passed, when downloading favorites they're not necessary
     #so we send blank vals along with the reqeusts
@@ -285,30 +289,13 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range):
     
     #Regular expression used to find valid wallpaper urls within the index.html
     matchs = re.findall(r'http://wallbase.cc/wallpaper/\d+', url_html)
+
+        
     #####
     #####    Experimental regex used to match the entire string of url and purity filter
-    #####    into 1 giant tuple
     #matchs = re.findall(r'(http://wallbase.cc/wallpaper/(\d+))+(id="\w+\d+")>', url_html)
 
-    ##################################################################################
-    ##    Experimental code for matching the purity filter to an image so we
-    ##    can download the image to a different folder if so desired
-    ##
-    ##
-#    purity_match = re.findall(r'id="[^del]\w+_(\d+)">', url_html)
-#    for match in matchs:
-#        print match
-#    for match in purity_match:
-#        print match
-#    sys.exit()
-#    
-#    ##
-    ##
-    ##
-    ##
-    ##
-    ##    END OF EXPERIMENTAL CODE
-    ##################################################################################
+
     
     #regex that finds the number of search results, up to a billion
     active_walls = re.search(r'a\sactive"><span>(\d+),*(\d*),*(\d*)', url_html)
@@ -351,8 +338,42 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range):
                 
                 #regex for locating the wallpapers img src url and appending the src and name to the dictionary
                 img_match_src = re.search(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)', img_src_html)
+    ##################################################################################
+    ##    Experimental code for matching the purity filter to an image so we
+    ##    can download the image to a different folder if so desired
+    ##    Add another variable to the each img key in img_names_dict so specify the 
+    ##    purity filter for that image
+    ##    <li class="l selected SFW">
+    ##    <li class="c selected SKETCHY">
+    ##                          NSFW
+    ##
+#                if dl_to_diff_folders == 'True':
+#                    purity_match = re.search(r'class="c\sselected\s(\w+)', img_src_html)
+#                    print purity_match.group(1)
+#                    sys.exit()
+            #    
+    ##
+    ##
+    ##
+    ##
+    ##
+    ##    END OF EXPERIMENTAL CODE
+    ##################################################################################
+                
+                
                 if img_match_src:
-                    img_names_dict[img_match_src.group(1)] = img_match_src.group(0)
+                    #Experiemental code##########################
+                    if dl_to_diff_folders == 'True':
+                        purity_match = re.search(r'class="[c|l]\sselected\s(\w+)', img_src_html)
+                        print purity_match.group(1)
+                        img_names_dict[img_match_src.group(1)] = (img_match_src.group(0), purity_match.group(1))
+                    else:
+                        ###################################
+                        img_names_dict[img_match_src.group(1)] = img_match_src.group(0)
+                    
+                    #printing the output
+                    print img_names_dict[img_match_src.group(1)]
+#                    sys.exit()
                 
                     #status of matches based on range or limits
                     if max_range < int(num_of_walls):
@@ -385,7 +406,7 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range):
 def get_imgs(img_names_dict, start_range, dest_dir = ''):
     """This method is used to retrieve images from a dictionary of wallpapers and urls,
     saves them to your hard drive, and if they already exist skips the download."""
-    
+
     #If the chosen directory doesn't exist, create it
     dir_check(dest_dir)
     
@@ -408,7 +429,23 @@ def get_imgs(img_names_dict, start_range, dest_dir = ''):
             print 'File %d, %s already exists' % (start_range +1, img)
         else:
             print 'Retrieving wallpaper %d' %(start_range +1)
-            urllib.urlretrieve(img_names_dict.get(img), os.path.join(dest_dir, img))
+#            urllib.urlretrieve(img_names_dict.get(img), os.path.join(dest_dir, img))
+
+            #######################################################################
+            #Code to retrieve wallpaper based on purity filter if it exists
+            #if it doesn't, retireve without purity filter
+            if (img_names_dict[img])[1] in purity_list:
+                purity_dir = os.path.join(dest_dir, (img_names_dict[img])[1])
+                purity_file = os.path.join(purity_dir, img)
+                dir_check(purity_dir)
+                print purity_dir
+                print purity_file
+#                print (img_names_dict.get(img))
+#                sys.exit()
+                urllib.urlretrieve(img_names_dict[img][0], purity_file)
+            else:
+                urllib.urlretrieve(img_names_dict[img], os.path.join(dest_dir, img))
+            #########################################################################    
         
             #Time delay to help with 503 errors, should add a try except here in case an error is encountered
             sleep(1)
@@ -536,9 +573,10 @@ def dl_config(config_dir):
     password = ''
     dest_dir = ''
     query_name = ''
+    dl_to_diff_folders = 'False'
     search_query = ({'query': query, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
                        'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': section, '1': 1,
-                        'start_range' : start_range, 'max_range' : max_range, 'query_name': query_name})
+                        'start_range' : start_range, 'max_range' : max_range, 'query_name': query_name, 'dl_to_diff_folders' : dl_to_diff_folders})
     user_vars = ({'destination_directory': dest_dir, 'username': username, 'password': password})
     ###############################################################################################################
     
@@ -591,7 +629,7 @@ def dl_config(config_dir):
                 user_vars[option] = c.get('User Options', option)
                 print "\t", option, '=', c.get('User Options', option)
         if search_query['nsfw'] == '001' or search_query['nsfw'] == '010' or search_query['nsfw'] == '011' or search_query['nsfw'] == '111' and user_vars['password'] == '':
-            print "You forgot to enter your username and password for nsfw files:\nRe-edit the file, save the changes and press enter"
+            print "NSFW query detected:\nMake sure your username and password is in the ini file, save the changes and press enter"
             raw_input()
             wallbase_auth(c.get("User Options", 'username'), c.get("User Options", 'password'))
         print '#'*40
@@ -628,7 +666,7 @@ def dl_config(config_dir):
         encoded_query = urllib.urlencode(search_query)
         dest_dir = user_vars['destination_directory']
         wallbase_auth(user_vars['username'], user_vars['password'])
-        download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']))
+        download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
         
 #    sys.exit()
     else:
@@ -636,7 +674,7 @@ def dl_config(config_dir):
         dest_dir = user_vars['destination_directory']
         dir_check(dest_dir)
         wallbase_auth(user_vars['username'], user_vars['password'])
-        download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']))
+        download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
 
     
 def dl_search(dest_dir, query_string =''):
@@ -699,7 +737,7 @@ def main():
 
 #dl_search('', '')
 #dl_favorites('')
-#dl_config('Custom_Search.ini')
+dl_config('.')
 ##uncomment to run the main method from the console        
 if __name__ == "__main__":
     '''If the scripts initiates itself, run the main method
