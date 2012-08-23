@@ -338,43 +338,17 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                 
                 #regex for locating the wallpapers img src url and appending the src and name to the dictionary
                 img_match_src = re.search(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)', img_src_html)
-    ##################################################################################
-    ##    Experimental code for matching the purity filter to an image so we
-    ##    can download the image to a different folder if so desired
-    ##    Add another variable to the each img key in img_names_dict so specify the 
-    ##    purity filter for that image
-    ##    <li class="l selected SFW">
-    ##    <li class="c selected SKETCHY">
-    ##                          NSFW
-    ##
-#                if dl_to_diff_folders == 'True':
-#                    purity_match = re.search(r'class="c\sselected\s(\w+)', img_src_html)
-#                    print purity_match.group(1)
-#                    sys.exit()
-            #    
-    ##
-    ##
-    ##
-    ##
-    ##
-    ##    END OF EXPERIMENTAL CODE
-    ##################################################################################
-                
-                
+
+                #Added a regex to tag each wallpaper with it's purity setting
+                #so that you can download the wallpaper to a different folder
+                #if you wish.                
                 if img_match_src:
-                    #Experiemental code##########################
                     if dl_to_diff_folders == 'True':
                         purity_match = re.search(r'class="[c|l]\sselected\s(\w+)', img_src_html)
-                        print purity_match.group(1)
                         img_names_dict[img_match_src.group(1)] = (img_match_src.group(0), purity_match.group(1))
                     else:
-                        ###################################
                         img_names_dict[img_match_src.group(1)] = img_match_src.group(0)
                     
-                    #printing the output
-                    print img_names_dict[img_match_src.group(1)]
-#                    sys.exit()
-                
                     #status of matches based on range or limits
                     if max_range < int(num_of_walls):
                         print "matched: ",  start_range +1 , '/', max_range
@@ -438,10 +412,6 @@ def get_imgs(img_names_dict, start_range, dest_dir = ''):
                 purity_dir = os.path.join(dest_dir, (img_names_dict[img])[1])
                 purity_file = os.path.join(purity_dir, img)
                 dir_check(purity_dir)
-                print purity_dir
-                print purity_file
-#                print (img_names_dict.get(img))
-#                sys.exit()
                 urllib.urlretrieve(img_names_dict[img][0], purity_file)
             else:
                 urllib.urlretrieve(img_names_dict[img], os.path.join(dest_dir, img))
