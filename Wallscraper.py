@@ -287,7 +287,7 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     url_html = search_url.read()
     
     #Uncomment if you wish to have an html file to verify your query is working properly
-    output_html_to_file(url_html, dest_dir)
+#    output_html_to_file(url_html, dest_dir)
     
     #Regular expression used to find valid wallpaper urls within the index.html
     matchs = re.findall(r'http://wallbase.cc/wallpaper/\d+', url_html)
