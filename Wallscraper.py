@@ -623,7 +623,7 @@ def dl_config(config_dir):
             for option in c.options('User Options'):
                 user_vars[option] = c.get('User Options', option)
                 print "\t", option, '=', c.get('User Options', option)
-        if (c.get('Search Query', 'nsfw') in purity_bits) and (c.get("User Options", 'password') == ' '):
+        if (c.get('Search Query', 'nsfw') in purity_bits) and (c.get("User Options", 'password') == ''):
             print "NSFW query detected:\nMake sure your username and password is in the ini file, save the changes and press enter"
             raw_input()
             wallbase_auth(c.get("User Options", 'username'), c.get("User Options", 'password'))
