@@ -198,7 +198,7 @@ def search_options(dest_dir, query = '' ):
                     print 'Please enter your password:'
                     passw = raw_input()
                     wallbase_auth(user, passw)
-                print "#" * 80 + "\nWould you like to keep your folder organized by purity??\nAccepted values are True or False (leave blank for False.\n" + "#" * 80
+                print "#" * 80 + "\nWould you like to keep your folder organized by purity??\nAccepted values are True or False (leave blank for False).\n" + "#" * 80
                 search_query['dl_to_diff_folders'] = raw_input()
                 if search_query['dl_to_diff_folders'] =='':
                     search_query['dl_to_diff_folders'] = 'False'
@@ -552,8 +552,9 @@ def dl_favorites(dest_dir = ''):
 def dl_config(config_dir):
     '''This method allows you to kick of a query without going through any user prompts
     by simply feeding it a configuration file location and telling it to go.
-    Can ONLY be called via the command line. Currently works, however it won't handle
-    running the method if the ini file doesn't exist. Need to make it more robust'''
+    Can ONLY be called via the command line. If a config file isn't found, it creates a default
+    that you fill in and can use. Depending on options, it will download whereever you want
+    as well as sort your wallpapers based on purity level.'''
     ###############################################################################################################
     #default search values used to generate the ini files 
     #needed for the query, so they're set to wildcards on the server side
@@ -606,7 +607,6 @@ def dl_config(config_dir):
         raw_input()
         
     #Populate a list with the names of files and directories in the dest_dir
-    #list_files = os.listdir(dest_dir)    
     if os.path.exists(os.path.join(config_dir, 'Custom_Search.ini')):
         #Code to read the configuration file and set variables to match what's in the config
         print 'Custom_Search.ini found\nLoading settings from %s' %(os.path.join(config_dir, 'Custom_Search.ini'))
@@ -631,6 +631,9 @@ def dl_config(config_dir):
         #Return the variables set from the config file to the dl_search method
         FILE.close() 
         
+    #If the search query is based on a tag: query, then the destionation directory
+    #will be created using the name of the tag, not the tag number.
+    #This is done using a regex to pull the name from the html code and then creating the directory from taht
     if "tag:" in c.get("Search Query", 'query'):
         #Search headers and query necessary to get the search name of a tag: query
         search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc/search'}
@@ -649,13 +652,18 @@ def dl_config(config_dir):
         #Populate an object with the source html
         tag_html = search_url.read()
         tag_match = re.search(r'search\s\S(\w+\s*\w+)\S', tag_html)
+        
+        #The following code creates a destination directory based on whether or not
+        #the user has specified one in the custom_search.ini and whether or not
         print "Tag: query found!! Download directory will be based on the tags actual name, not number."
         alnum_name = ''.join(e for e in tag_match.group(1) if e.isalnum())
-        if config_dir != '.':
+        if config_dir != '.' and user_vars['destination_directory'] == "":
             new_dir = os.path.abspath(os.path.join(config_dir, alnum_name))
+        elif user_vars['destination_directory'] != "":
+            new_dir = os.path.abspath(os.path.join(c.get("User Options", 'destination_directory'), alnum_name))
         else:
             new_dir = os.path.abspath(alnum_name)
-            dir_check(alnum_name)  
+            dir_check(alnum_name)
         dir_check(new_dir)
         new_config_dir = os.path.join(new_dir, (alnum_name + '.ini'))
         shutil.copyfile((os.path.join(config_dir, 'Custom_Search.ini')), new_config_dir)   
@@ -675,15 +683,18 @@ def dl_config(config_dir):
         wallbase_auth(user_vars['username'], user_vars['password'])
         download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
     
+    #This code creates the directories based on the Query name
+    #If the dest_dir is set in the ini file, it downloads to that directory
     elif c.get("Search Query", 'query') != '':
         print "Non-blank query found\nCreating custom directory for the query and copying the .ini file.."
         alnum_name = ''.join(e for e in c.get("Search Query", 'query') if e.isalnum())
-        #If non-default directory chosen from command line, create new directory in the chosen directory
-        if config_dir != '.':
+        if config_dir != '.' and user_vars['destination_directory'] == "":
             new_dir = os.path.abspath(os.path.join(config_dir, alnum_name))
+        elif user_vars['destination_directory'] != "":
+            new_dir = os.path.abspath(os.path.join(c.get("User Options", 'destination_directory'), alnum_name))
         else:
             new_dir = os.path.abspath(alnum_name)
-            dir_check(alnum_name)  
+            dir_check(alnum_name)
         dir_check(new_dir)
         new_config_dir = os.path.join(new_dir, (alnum_name + '.ini'))
         shutil.copyfile((os.path.join(config_dir, 'Custom_Search.ini')), new_config_dir)   
@@ -766,7 +777,7 @@ def main():
             dl_config(config_dir)
 #dl_search('', '')
 #dl_favorites('')
-#dl_config(r'z:\internets\wallbase\searches')
+#dl_config(r'c:\wallbase\searches')
 ##uncomment to run the main method from the console        
 if __name__ == "__main__":
     '''If the scripts initiates itself, run the main method

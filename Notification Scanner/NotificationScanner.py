@@ -13,7 +13,6 @@ import os
 import re 
 import sys
 import logging
-import time
 
 def trans_id_match(not_log_dir):
     '''This method takes the location of notification files as an argument,
@@ -57,7 +56,6 @@ def trans_id_match(not_log_dir):
     #Outputs to the user and the log file the Transaction ID of a duplicate transaction as well as the 
     #number of duplicates and the location of the Transaction ID in the notification file
     duplicate_dict = {}
-    print "Transaction IDS:"
     count = 0   
     for t_id in trans_ids:
         if not 'duplicate' in t_id and duplicate_count[t_id] > 2:
@@ -67,15 +65,15 @@ def trans_id_match(not_log_dir):
             duplicate_dict[t_id] = [duplicate_count[t_id], trans_ids[t_id]]
             count +=1
     if count == 0:
-        success_string = "No Duplicate ID(s) found, Success!"
-        print success_string
-        print len(trans_ids), ' unique Transaction ID(s)'
+        success_string = "No Duplicate ID(s) found out of %s unique Transaction ID(s). Success!" %(len(trans_ids))
         logger.info(success_string)
     del count
 #    FILE.close()
     return duplicate_dict
+    print "Scanning completed, check the log file at %s for results:" %(os.path.join(not_log_dir, "Scanner_Results.log"))
+    sys.exit()
             
-trans_id_match(r'C:\Log\Processor-KylesPyMatchTest\Notification')
+#trans_id_match(r'C:\Log\Processor-KylesPyMatchTest\Notification')
 
 
 def main():
