@@ -18,7 +18,6 @@ import cookielib
 import ConfigParser
 import shutil
 
-
 #Installing the CookieJar - This will make the urlopener bound to the CookieJar.
 #This way, any urls that are opened will handle cookies appropriately 
 #Has to be at a global level so I can save the cookie from different methods
@@ -44,7 +43,7 @@ if cj is not None:
 #by any methods in the script.
 img_names_dict = {}
 #Used in multiple methods for purity list checks
-purity_list = ('NSFW','SKETCHY', "SFW")
+purity_list = ('NSFW','SKETCHY', 'SFW')
 
 def dir_check(directory):
     '''This method checks whether a directory exists or not, if it doesn't, it creates it for you'''
@@ -55,7 +54,6 @@ def dir_check(directory):
     else: #create the path for the user and tell the user the name of the path
         print '%s | didn\'t exist, creating...' %(os.path.abspath(directory))
         os.makedirs(os.path.join(directory))
-
 def search_config(dest_dir, search_query, query_name = '', new_ini = False):
 
     query_name = search_query['query_name']
@@ -82,7 +80,6 @@ def search_config(dest_dir, search_query, query_name = '', new_ini = False):
     #instantiate c as a configparser class
     c = ConfigParser.ConfigParser()
 
- 
     #Code to read the configuration file and set variables to match what's in the config
     #Check if an ini file exists in the dest_dir, if yes, ask to load the config and re-do the search
     if query_file in list_files and new_ini == False:
@@ -99,9 +96,8 @@ def search_config(dest_dir, search_query, query_name = '', new_ini = False):
         print '#'*40
         #Return the variables set from the config file to the dl_search method
         FILE.close()   
-        return search_query, dest_dir
+        return search_query, dest_dir, c.get("Search Query", 'dl_to_diff_folders')
         
- 
     #use this code to create the file if it doesn't already exist
     if dest_dir not in list_files and new_ini == True:
         c.add_section("Search Query")
@@ -114,9 +110,7 @@ def search_config(dest_dir, search_query, query_name = '', new_ini = False):
         c.write(FILE)
         print "Config file stored at:\n", os.path.abspath(os.path.join(dest_dir, query_file))
         FILE.close()   
-        return search_query, dest_dir
-  
-    
+        return search_query, dest_dir, c.get("Search Query", 'dl_to_diff_folders')
 def search_options(dest_dir, query = '' ):
     '''
     This method populates a urllib encoded data stream used in the request of search URLs.
@@ -137,9 +131,10 @@ def search_options(dest_dir, query = '' ):
     orderby_opt='0'
     thpp='32'
     section= 'wallpapers'
+    dl_to_diff_folders = 'False'
     search_query = ({'query': query, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
                        'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': section, '1': 1,
-                        'start_range' : start_range, 'max_range' : max_range, 'query_name': query})
+                        'start_range' : start_range, 'max_range' : max_range, 'query_name': query, 'dl_to_diff_folders' : dl_to_diff_folders})
     ###############################################################################################################
     
     
@@ -169,7 +164,7 @@ def search_options(dest_dir, query = '' ):
             config_choice = raw_input()
             if config_choice == 'y':
                 try:
-                    search_query, dest_dir = search_config(dest_dir, search_query, search_query['query_name'])
+                    search_query, dest_dir, dl_to_diff_folders = search_config(dest_dir, search_query, search_query['query_name'])
                     #################################################################################################################
                     #NSFW check if the call to config was successfull
                     #S really move the NSFW check to the wallbase auth method
@@ -186,7 +181,7 @@ def search_options(dest_dir, query = '' ):
                     print "Search ini not found!\nPlease complete the following questions to create a new query"
                     search_config(dest_dir, search_query, search_query['query_name'], True)
                 if type_error == False:
-                    return urllib.urlencode(search_query), search_query['start_range'], search_query['max_range'], dest_dir
+                    return urllib.urlencode(search_query), search_query['start_range'], search_query['max_range'], dest_dir, dl_to_diff_folders
                     
                 
             if config_choice =='n' or config_choice == '' or type_error == True:
@@ -202,6 +197,12 @@ def search_options(dest_dir, query = '' ):
                     print 'Please enter your password:'
                     passw = raw_input()
                     wallbase_auth(user, passw)
+                ####
+                print "#" * 80 + "\nWould you like to keep your folder organized by purity??\nAccepted values are True or False (leave blank for False.\n" + "#" * 80
+                search_query['dl_to_diff_folders'] = raw_input()
+                if search_query['dl_to_diff_folders'] =='':
+                    search_query['dl_to_diff_folders'] = 'False'
+                ####
                 print "#" * 80 + "\nWhich Aspect Ratio do you want to filter by?\nAccepted values are 'blank' => All | 1.33 => 4:3 |"\
                 " 1.25 => 5:4 | 1.77 => 16:9 |\n1.60 => 16:10 | 1.70 => Netbook | 2.50 => Dual | 3.20 => Dual Wide | 0.99 => "\
                 "Port.\n" + "#" * 80
@@ -224,16 +225,16 @@ def search_options(dest_dir, query = '' ):
                     search_query['max_range'] = 2000
                     
                 #Populate the search_query with values input by the user as well as the default ones
-                search_query, dest_dir = search_config(dest_dir, search_query, search_query['query'], True)
+                search_query, dest_dir, dl_to_diff_folders = search_config(dest_dir, search_query, search_query['query'], True)
                 
                 
                 #Return the encoded search string for requests, the actual query string, and the range of the search
-                return urllib.urlencode(search_query), search_query['start_range'], search_query['max_range'], dest_dir
+                return urllib.urlencode(search_query), search_query['start_range'], search_query['max_range'], dest_dir, dl_to_diff_folders
 def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, max_range = 2000, dl_to_diff_folders = "False"):
     """
     This method initiates the downloads the html matches urls, and uses a counter and range to limit the downloads
     """
-    
+
     #check if the directory exists or not
     dir_check(dest_dir)
     print 'Files being saved to:\n', os.path.abspath(dest_dir) 
@@ -285,17 +286,12 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     
     #Populate an object with the source html
     url_html = search_url.read()
-    output_html_to_file(url_html, dest_dir)
+    
+    #Uncomment if you wish to have an html file to verify your query is working properly
+    #output_html_to_file(url_html, dest_dir)
     
     #Regular expression used to find valid wallpaper urls within the index.html
     matchs = re.findall(r'http://wallbase.cc/wallpaper/\d+', url_html)
-
-        
-    #####
-    #####    Experimental regex used to match the entire string of url and purity filter
-    #matchs = re.findall(r'(http://wallbase.cc/wallpaper/(\d+))+(id="\w+\d+")>', url_html)
-
-
     
     #regex that finds the number of search results, up to a billion
     active_walls = re.search(r'a\sactive"><span>(\d+),*(\d*),*(\d*)', url_html)
@@ -397,29 +393,41 @@ def get_imgs(img_names_dict, start_range, dest_dir = ''):
     
     #Iterate through the loop and download images in the lists
     for img in img_names_dict:
-    
-        #Check whether the image already exists or not, if yes, skip download, if not, download it
-        if os.path.isfile(os.path.join(dest_dir, img)):
-            print 'File %d, %s already exists' % (start_range +1, img)
-        else:
-            print 'Retrieving wallpaper %d' %(start_range +1)
-#            urllib.urlretrieve(img_names_dict.get(img), os.path.join(dest_dir, img))
-
-            #######################################################################
-            #Code to retrieve wallpaper based on purity filter if it exists
-            #if it doesn't, retireve without purity filter
-            if (img_names_dict[img])[1] in purity_list:
-                purity_dir = os.path.join(dest_dir, (img_names_dict[img])[1])
-                purity_file = os.path.join(purity_dir, img)
-                dir_check(purity_dir)
-                urllib.urlretrieve(img_names_dict[img][0], purity_file)
-            else:
-                urllib.urlretrieve(img_names_dict[img], os.path.join(dest_dir, img))
-            #########################################################################    
         
-            #Time delay to help with 503 errors, should add a try except here in case an error is encountered
-            sleep(1)
-            success_count += 1
+        #Setting the file name and directory in case of purity download filtering
+        #Adding absolute path to see if that fixes the favorites issue
+        purity_dir = os.path.join(dest_dir, (img_names_dict[img])[1])
+        purity_file = os.path.join(purity_dir, img)
+
+        #Create purity directory if it's needed
+        if img_names_dict[img][1] in purity_list:
+            dir_check(purity_dir)            
+
+            #else if image exists in purity directory, don't move it
+            if os.path.isfile(purity_file):
+                print "File %d, %s exists in %s folder, not moving" %(start_range +1, img, img_names_dict[img][1])
+            #testing this shit right here
+            #If image exists is in main directory, and dl to diff true, move image to purity folder
+            elif os.path.isfile(os.path.join(dest_dir, img)):
+                print "File %d, %s exists, moving to %s folder" %(start_range +1, img, img_names_dict[img][1])
+                shutil.move(os.path.join(dest_dir, img), purity_dir)
+            #else if image doesn't exist in purity direcotry, download that shit
+            elif not os.path.isfile(purity_file):
+                print 'File %d, %s downloading to %s folder' %(start_range +1, img, img_names_dict[img][1])
+                urllib.urlretrieve(img_names_dict[img][0], purity_file)
+                sleep(1)
+                success_count += 1
+        
+        #Check whether the image already exists or not, if yes, skip download, if not, download it
+        #used when purity sorting is not enabled, hence the purity_tagged value for the conditional statement
+        if img_names_dict[img][1] not in purity_list:
+            if os.path.isfile(os.path.join(dest_dir, img))  :
+                print 'File %d, %s exists in %s, not moved' % (start_range +1, img, os.path.basename(dest_dir))
+            elif not os.path.isfile(os.path.join(dest_dir, img)):
+                print 'File %d, %s downlaoding to %s folder' %(start_range +1, img, os.path.basename(dest_dir))
+                urllib.urlretrieve(img_names_dict[img], os.path.join(dest_dir, img))
+                sleep(1)
+                success_count += 1
         start_range +=1
         match_count +=1
     if success_count:
@@ -451,9 +459,16 @@ def wallbase_auth(username, password):
     http_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'http://wallbase.cc/start/'}   
     req = urllib2.Request(login_url, login_data, http_headers)
     
-    #Request is needed for wallbase to recognize that I"m logged in
-    resp = urllib2.urlopen(req)
-    
+    #Accounting for firewall blocking me due to traffic and handling it
+    while True:
+        try:
+            resp = urllib2.urlopen(req)
+        except urllib2.HTTPError as detail:
+            print "%s error encountered\nWaiting to try again" %(detail)
+            sleep(30)
+            continue
+        break
+
     #Save cookie with login info
     cj.save(COOKIEFILE)
     print 'User %s logged in' %(username)
@@ -516,9 +531,28 @@ def dl_favorites(dest_dir = ''):
    
         #Check if the favorites directory exists
         dir_check(dest_dir)
-    
+        
+        #Prompt for organizing folders by purity
+        choices = ['False', 'True']
+        print "#" * 80 + '\n' + ('Would you like to organize your images in folders based on purity level?\nOptions: True or False. (default is False)\n') + "#" * 80  
+        dl_to_diff_folders = raw_input()
+        if dl_to_diff_folders == '':
+            dl_to_diff_folders = 'False'
+        del count
+        count = 0
+        while dl_to_diff_folders not in choices and count < 2:
+            print "Please enter True or False without quotes to make your choice."
+            dl_to_diff_folders = raw_input()
+            count +=1
+            if count == 2 and dl_to_diff_folders not in choices:
+                print "Please try again when you learn how to type"
+                sys.exit(1)
+            
+        
+        print  "#" * 80
+        
         #call to actually begin downloads of the favorites
-        download_walls(dest_dir, '', fav_src_dict[user_choice])
+        download_walls(dest_dir, '', fav_src_dict[user_choice], 0 , 3000 , dl_to_diff_folders)
 def dl_config(config_dir):
     '''This method allows you to kick of a query without going through any user prompts
     by simply feeding it a configuration file location and telling it to go.
@@ -549,11 +583,6 @@ def dl_config(config_dir):
                         'start_range' : start_range, 'max_range' : max_range, 'query_name': query_name, 'dl_to_diff_folders' : dl_to_diff_folders})
     user_vars = ({'destination_directory': dest_dir, 'username': username, 'password': password})
     ###############################################################################################################
-    
-    #pull the destination directory from the config file
-    #Need to add a second setcion to the file with the user variables
-    #If the called ini file doesn't exist, create it using placeholder values
-    #so that the user can then input the values they want
         
     #instantiate c as a configparser class
     c = ConfigParser.ConfigParser()
@@ -606,11 +635,52 @@ def dl_config(config_dir):
         #Return the variables set from the config file to the dl_search method
         FILE.close() 
         
+    if "tag:" in c.get("Search Query", 'query'):
+        #url requests need values passed, when downloading favorites they're not necessary
+        #so we send blank vals along with the reqeust
+        search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc/search'}
+        tag_query = urllib.urlencode(search_query)
+        search_req = urllib2.Request('http://wallbase.cc/search', tag_query, search_headers)
+        #Initial html request, in a while loop in case of http errors
+        while True:
+            try:
+                search_url = urllib2.urlopen(search_req)
+            except urllib2.HTTPError as detail:
+                print "%s error encountered\nWaiting to try again" %(detail)
+                sleep(30)
+                continue
+            break
         
-    #Move a copy of the current search config to the new custom search directory for easy redownload later
-#    print c.get("Search Query", 'query')
-#    sys.exit()
-    if c.get("Search Query", 'query') != '':
+        #Populate an object with the source html
+        tag_html = search_url.read()
+        tag_match = re.search(r'search\s\S(\w+\s*\w+)\S', tag_html)
+        print "Tag: query found!! Creating custom directory for the query based on the tag name.."
+        alnum_name = ''.join(e for e in tag_match.group(1) if e.isalnum())
+        if config_dir != '.':
+            new_dir = os.path.abspath(os.path.join(config_dir, alnum_name))
+        else:
+            new_dir = os.path.abspath(alnum_name)
+            dir_check(alnum_name)  
+        dir_check(new_dir)
+        new_config_dir = os.path.join(new_dir, (alnum_name + '.ini'))
+        shutil.copyfile((os.path.join(config_dir, 'Custom_Search.ini')), new_config_dir)   
+        FILE = open(new_config_dir, "rb")
+        c.readfp(FILE)
+        c.set("Search Query", 'query_name', c.get("Search Query", "query"))
+        c.set("User Options", 'destination_directory', new_dir)
+        FILE = open(new_config_dir, 'w')
+        c.write(FILE)
+        FILE = open(new_config_dir, 'rb')
+        c.readfp(FILE)
+        user_vars['destination_directory'] = c.get("User Options", 'destination_directory')
+        FILE.close()
+        
+        encoded_query = urllib.urlencode(search_query)
+        dest_dir = user_vars['destination_directory']
+        wallbase_auth(user_vars['username'], user_vars['password'])
+        download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
+    
+    elif c.get("Search Query", 'query') != '':
         print "Non-blank query found\nCreating custom directory for the query and copying the .ini file.."
         alnum_name = ''.join(e for e in c.get("Search Query", 'query') if e.isalnum())
         #If non-default directory chosen from command line, create new directory in the chosen directory
@@ -638,15 +708,13 @@ def dl_config(config_dir):
         wallbase_auth(user_vars['username'], user_vars['password'])
         download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
         
-#    sys.exit()
+  
     else:
         encoded_query = urllib.urlencode(search_query)
         dest_dir = user_vars['destination_directory']
         dir_check(dest_dir)
         wallbase_auth(user_vars['username'], user_vars['password'])
         download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
-
-    
 def dl_search(dest_dir, query_string =''):
     '''This method let's you pick search options for your query. 
     You can leave both arguments blank and you will be asked to provide a query and a destination directory during the selection process.
@@ -657,11 +725,10 @@ def dl_search(dest_dir, query_string =''):
         print ("#" * 80 + '\n' + 'What directory would you like to save your queries to?\nQueries will automatically be saved in a folder named after the query\ne.g. c:\\"searches"\n' + "#" * 80)
         dest_dir = raw_input()
         dest_dir = os.path.abspath(dest_dir) 
-        encoded_query, start_range, max_range, dest_dir = search_options(dest_dir)    
+        encoded_query, start_range, max_range, dest_dir, dl_to_diff_folders = search_options(dest_dir)    
 
     #call to begin actual download of the wallpapers
-    download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(start_range), int(max_range))
-    
+    download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(start_range), int(max_range), dl_to_diff_folders)
 def logout():
     '''This sub-method when invoked will clear all cookies
         stored by this method and effectively log the user out.
@@ -702,12 +769,9 @@ def main():
         except IndexError:
             print 'Using default directory of', os.path.abspath(config_dir)
             dl_config(config_dir)
-        
-        
-
 #dl_search('', '')
 #dl_favorites('')
-dl_config('.')
+#dl_config(r'z:\internets\wallbase\searches')
 ##uncomment to run the main method from the console        
 if __name__ == "__main__":
     '''If the scripts initiates itself, run the main method
