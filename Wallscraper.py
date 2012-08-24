@@ -44,6 +44,7 @@ if cj is not None:
 img_names_dict = {}
 #Used in multiple methods for purity list checks
 purity_list = ('NSFW','SKETCHY', 'SFW')
+purity_bits = ('001', '011', '111')
 
 def dir_check(directory):
     '''This method checks whether a directory exists or not, if it doesn't, it creates it for you'''
@@ -622,7 +623,7 @@ def dl_config(config_dir):
             for option in c.options('User Options'):
                 user_vars[option] = c.get('User Options', option)
                 print "\t", option, '=', c.get('User Options', option)
-        if search_query['nsfw'] == '001' or search_query['nsfw'] == '010' or search_query['nsfw'] == '011' or search_query['nsfw'] == '111' and user_vars['password'] == '':
+        if (c.get('Search Query', 'nsfw') in purity_bits) and (c.get("User Options", 'password') == ' '):
             print "NSFW query detected:\nMake sure your username and password is in the ini file, save the changes and press enter"
             raw_input()
             wallbase_auth(c.get("User Options", 'username'), c.get("User Options", 'password'))
