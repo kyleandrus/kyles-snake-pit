@@ -197,12 +197,10 @@ def search_options(dest_dir, query = '' ):
                     print 'Please enter your password:'
                     passw = raw_input()
                     wallbase_auth(user, passw)
-                ####
                 print "#" * 80 + "\nWould you like to keep your folder organized by purity??\nAccepted values are True or False (leave blank for False.\n" + "#" * 80
                 search_query['dl_to_diff_folders'] = raw_input()
                 if search_query['dl_to_diff_folders'] =='':
                     search_query['dl_to_diff_folders'] = 'False'
-                ####
                 print "#" * 80 + "\nWhich Aspect Ratio do you want to filter by?\nAccepted values are 'blank' => All | 1.33 => 4:3 |"\
                 " 1.25 => 5:4 | 1.77 => 16:9 |\n1.60 => 16:10 | 1.70 => Netbook | 2.50 => Dual | 3.20 => Dual Wide | 0.99 => "\
                 "Port.\n" + "#" * 80
@@ -395,7 +393,6 @@ def get_imgs(img_names_dict, start_range, dest_dir = ''):
     for img in img_names_dict:
         
         #Setting the file name and directory in case of purity download filtering
-        #Adding absolute path to see if that fixes the favorites issue
         purity_dir = os.path.join(dest_dir, (img_names_dict[img])[1])
         purity_file = os.path.join(purity_dir, img)
 
@@ -406,7 +403,6 @@ def get_imgs(img_names_dict, start_range, dest_dir = ''):
             #else if image exists in purity directory, don't move it
             if os.path.isfile(purity_file):
                 print "File %d, %s exists in %s folder, not moving" %(start_range +1, img, img_names_dict[img][1])
-            #testing this shit right here
             #If image exists is in main directory, and dl to diff true, move image to purity folder
             elif os.path.isfile(os.path.join(dest_dir, img)):
                 print "File %d, %s exists, moving to %s folder" %(start_range +1, img, img_names_dict[img][1])
@@ -418,8 +414,7 @@ def get_imgs(img_names_dict, start_range, dest_dir = ''):
                 sleep(1)
                 success_count += 1
         
-        #Check whether the image already exists or not, if yes, skip download, if not, download it
-        #used when purity sorting is not enabled, hence the purity_tagged value for the conditional statement
+        #Check whether the image already exists or not, if yes, skip download, if not, download it used when purity sorting is not enabled
         if img_names_dict[img][1] not in purity_list:
             if os.path.isfile(os.path.join(dest_dir, img))  :
                 print 'File %d, %s exists in %s, not moved' % (start_range +1, img, os.path.basename(dest_dir))
@@ -636,8 +631,7 @@ def dl_config(config_dir):
         FILE.close() 
         
     if "tag:" in c.get("Search Query", 'query'):
-        #url requests need values passed, when downloading favorites they're not necessary
-        #so we send blank vals along with the reqeust
+        #Search headers and query necessary to get the search name of a tag: query
         search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc/search'}
         tag_query = urllib.urlencode(search_query)
         search_req = urllib2.Request('http://wallbase.cc/search', tag_query, search_headers)
@@ -654,7 +648,7 @@ def dl_config(config_dir):
         #Populate an object with the source html
         tag_html = search_url.read()
         tag_match = re.search(r'search\s\S(\w+\s*\w+)\S', tag_html)
-        print "Tag: query found!! Creating custom directory for the query based on the tag name.."
+        print "Tag: query found!! Download directory will be based on the tags actual name, not number."
         alnum_name = ''.join(e for e in tag_match.group(1) if e.isalnum())
         if config_dir != '.':
             new_dir = os.path.abspath(os.path.join(config_dir, alnum_name))
