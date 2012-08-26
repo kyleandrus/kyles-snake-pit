@@ -45,6 +45,7 @@ img_names_dict = {}
 #Used in multiple methods for purity list checks
 purity_list = ('NSFW','SKETCHY', 'SFW')
 purity_bits = ('001', '011', '111')
+toplist_dict = {"0": "AllTime", "3m": '3Months', '2m':'2Months', '1m':'1Month', '2w':'2Weeks', '1w':'1Week', '3d':'3Days', '1d':'1Day'}
 
 def dir_check(directory):
     '''This method checks whether a directory exists or not, if it doesn't, it creates it for you'''
@@ -133,9 +134,10 @@ def search_options(dest_dir, query = '' ):
     thpp='32'
     section= 'wallpapers'
     dl_to_diff_folders = 'False'
+    toplist_time = ''
     search_query = ({'query': query, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
                        'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': section, '1': 1,
-                        'start_range' : start_range, 'max_range' : max_range, 'query_name': query, 'dl_to_diff_folders' : dl_to_diff_folders})
+                        'start_range' : start_range, 'max_range' : max_range, 'query_name': query, 'dl_to_diff_folders' : dl_to_diff_folders, 'time':toplist_time})
     ###############################################################################################################
     
     
@@ -233,7 +235,6 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
     """
     This method initiates the downloads the html matches urls, and uses a counter and range to limit the downloads
     """
-
     #check if the directory exists or not
     dir_check(dest_dir)
     print 'Files being saved to:\n', os.path.abspath(dest_dir) 
@@ -243,18 +244,26 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
     
         #Used as a placeholder for the url so we can reset it after the loop
         temp_url = url
-        
+        #If the search_uery is already encoded, use the default url modifier
+        if '&' in search_query:
+            url = url + '/' + str(start_range)
+            encoded_query = search_query
+        #if the search_query is unmodified, use the toplist if the time field is set
+        elif search_query['time'] in toplist_dict:
+            url = url + '/' + str(start_range) + '/' + search_query['board'] + '/' + search_query['res_opt'] + '/' + search_query['res'] + '/' + search_query['aspect'] + '/' + search_query['nsfw']+'/' +search_query['thpp'] +'/' +search_query['time']
+            encoded_query = urllib.urlencode(search_query)
         #Modify the url to retrieve the current range of wallpapers
-        url = url + '/' + str(start_range)
+
         
         #verbose, verification to the user of which page they're on. not needed
         print "We are looking for wallpapers in the url:\n",  url
         
         #Begin matching imgs in the html and pull the start number out of the resultant matches
-        start_range = match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_folders)
+        start_range = match_imgs(url, dest_dir, encoded_query, start_range, max_range, dl_to_diff_folders)
         
         #reset the url since the match is completed
         url = temp_url
+    
         
         #Call to method used to actually download the images from the match
         #Uses dictionary of names:sources
@@ -287,7 +296,7 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     url_html = search_url.read()
     
     #Uncomment if you wish to have an html file to verify your query is working properly
-#    output_html_to_file(url_html, dest_dir)
+    #output_html_to_file(url_html, dest_dir)
     
     #Regular expression used to find valid wallpaper urls within the index.html
     matchs = re.findall(r'http://wallbase.cc/wallpaper/\d+', url_html)
@@ -396,11 +405,9 @@ def get_imgs(img_names_dict, start_range, dest_dir = ''):
         #Setting the file name and directory in case of purity download filtering
         purity_dir = os.path.join(dest_dir, (img_names_dict[img])[1])
         purity_file = os.path.join(purity_dir, img)
-
         #Create purity directory if it's needed
         if img_names_dict[img][1] in purity_list:
             dir_check(purity_dir)            
-
             #else if image exists in purity directory, don't move it
             if os.path.isfile(purity_file):
                 print "File %d, %s exists in %s folder, not moving" %(start_range +1, img, img_names_dict[img][1])
@@ -411,19 +418,32 @@ def get_imgs(img_names_dict, start_range, dest_dir = ''):
             #else if image doesn't exist in purity direcotry, download that shit
             elif not os.path.isfile(purity_file):
                 print 'File %d, %s downloading to %s folder' %(start_range +1, img, img_names_dict[img][1])
-                urllib.urlretrieve(img_names_dict[img][0], purity_file)
-                sleep(1)
-                success_count += 1
-        
+                while True:
+                    try:
+                        urllib.urlretrieve(img_names_dict[img][0], purity_file)
+                        success_count += 1
+                        sleep(1)
+                    except IOError as detail:
+                        print detail, 'occured, waiting to try again'
+                        sleep(60)
+                        continue
+                    break
         #Check whether the image already exists or not, if yes, skip download, if not, download it used when purity sorting is not enabled
         if img_names_dict[img][1] not in purity_list:
             if os.path.isfile(os.path.join(dest_dir, img))  :
                 print 'File %d, %s exists in %s, not moved' % (start_range +1, img, os.path.basename(dest_dir))
             elif not os.path.isfile(os.path.join(dest_dir, img)):
                 print 'File %d, %s downlaoding to %s folder' %(start_range +1, img, os.path.basename(dest_dir))
-                urllib.urlretrieve(img_names_dict[img], os.path.join(dest_dir, img))
-                sleep(1)
-                success_count += 1
+                while True:
+                    try:
+                        urllib.urlretrieve(img_names_dict[img], os.path.join(dest_dir, img))
+                        success_count += 1
+                        sleep(1)
+                    except IOError as detail:
+                        print detail, 'occured, waiting to try again'
+                        sleep(60)
+                        continue
+                    break
         start_range +=1
         match_count +=1
     if success_count:
@@ -574,10 +594,11 @@ def dl_config(config_dir):
     password = ''
     dest_dir = ''
     query_name = ''
+    toplist_time = ''
     dl_to_diff_folders = 'False'
     search_query = ({'query': query, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
                        'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': section, '1': 1,
-                        'start_range' : start_range, 'max_range' : max_range, 'query_name': query_name, 'dl_to_diff_folders' : dl_to_diff_folders})
+                        'start_range' : start_range, 'max_range' : max_range, 'query_name': query_name, 'dl_to_diff_folders' : dl_to_diff_folders, 'time': toplist_time})
     user_vars = ({'destination_directory': dest_dir, 'username': username, 'password': password})
     ###############################################################################################################
         
@@ -630,11 +651,52 @@ def dl_config(config_dir):
         print '#'*40
         #Return the variables set from the config file to the dl_search method
         FILE.close() 
-        
+    
+    #Code to base the downloads on the BEST OF TOPLIST on wallbase, this will cause the script to ignore
+    #any search queries in the file and just download the top viewed wallpapers in a given time frame 
+    if c.get("Search Query", 'time') in toplist_dict:
+        print "Toplist query found. Ignoring search queries"
+        if config_dir != '.' and user_vars['destination_directory'] == "":
+            toplist_dir = os.path.abspath(os.path.join(config_dir, "BestOf%s" %(toplist_dict[search_query['time']])))  
+        elif user_vars['destination_directory'] != "":
+            toplist_dir = os.path.abspath(os.path.join(user_vars['destination_directory'], "BestOf%s" %(toplist_dict[search_query['time']])))        
+        else:
+            toplist_dir = os.path.abspath(os.path.join("BestOf%s" %(toplist_dict[search_query['time']])))
+        dir_check(toplist_dir)
+        new_config_dir = os.path.join(toplist_dir, ("BestOf%s" %(toplist_dict[search_query['time']] + '.ini')))
+        shutil.copyfile((os.path.join(config_dir, 'Custom_Search.ini')), new_config_dir)   
+        FILE = open(new_config_dir, "rb")
+        c.readfp(FILE)
+        c.set("Search Query", 'query_name', "")
+        c.set("Search Query", 'time', search_query['time'])
+        c.set("User Options", 'destination_directory', toplist_dir)
+        FILE = open(new_config_dir, 'w')
+        c.write(FILE)
+        FILE = open(new_config_dir, 'rb')
+        c.readfp(FILE)
+        user_vars['destination_directory'] = c.get("User Options", 'destination_directory')
+        search_query['time'] = c.get('Search Query', 'time')
+        FILE.close()
+
+#        encoded_query = urllib.urlencode(search_query)
+        dest_dir = user_vars['destination_directory']
+        ################################################################
+        #Need to fix the wallbase_auth method, when you auth before loading a toplist
+        #the toplist is populated using your default user settings, so your query settings 
+        #are ignored!!!
+        wallbase_auth(user_vars['username'], user_vars['password'])
+        ##################################################################################
+        #Need to figure out a way to reload the page once the auth has been completed and repass the query to the page
+        #it appears as though the toplist page just ignore my query all together....
+        #Try using this as the search url and shizzle
+        #http://wallbase.cc/toplist/0/12/eqeq/0x0/0/100/32/2d
+        download_walls(dest_dir, search_query, 'http://wallbase.cc/toplist', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
+
+    
     #If the search query is based on a tag: query, then the destionation directory
     #will be created using the name of the tag, not the tag number.
     #This is done using a regex to pull the name from the html code and then creating the directory from taht
-    if "tag:" in c.get("Search Query", 'query'):
+    elif "tag:" in c.get("Search Query", 'query'):
         #Search headers and query necessary to get the search name of a tag: query
         search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc/search'}
         tag_query = urllib.urlencode(search_query)
@@ -777,7 +839,7 @@ def main():
             dl_config(config_dir)
 #dl_search('', '')
 #dl_favorites('')
-#dl_config(r'c:\wallbase\searches')
+dl_config(r'.')
 ##uncomment to run the main method from the console        
 if __name__ == "__main__":
     '''If the scripts initiates itself, run the main method
