@@ -17,6 +17,13 @@ import urllib2
 import cookielib
 import ConfigParser
 import shutil
+try:
+    from bs4 import BeautifulSoup
+except:
+    print "You need to install BeautifulSoup.\nGo here to download it\nhttp://www.crummy.com/software/BeautifulSoup/bs4/download/"
+    sys.exit()
+    
+import operator
 
 #Installing the CookieJar - This will make the urlopener bound to the CookieJar.
 #This way, any urls that are opened will handle cookies appropriately 
@@ -47,6 +54,66 @@ purity_list = ('NSFW','SKETCHY', 'SFW')
 purity_bits = ('001', '011', '111')
 toplist_dict = {"0": "AllTime", "3m": '3Months', '2m':'2Months', '1m':'1Month', '2w':'2Weeks', '1w':'1Week', '3d':'3Days', '1d':'1Day'}
 yes_list = {'yes', 'y', 'Y', 'Yes', 'YES', 'YEs', 'yeS','yES'}
+
+def html_parse(html_file, type_of_parse):
+    '''this method parses an html file and pulls out the data that is needed based on the type of parsing requested'''
+    #Opening an html_file for parsing
+    soup = BeautifulSoup(open(html_file))
+    
+    #Dictionary used to store the contents of the parsing that will take place
+    src_dict = {}
+    
+    #If I'm parsing a users collections, use the following parsing code
+    if type_of_parse == 'collection':
+        count = 0
+        #Find all links that match the following wallbase.cc/user/collection/xxxxxx
+        for link in soup.find_all('a', href=re.compile('wallbase.cc/user/collection/\d+')):
+            coll_url = link.get('href')
+            title_string = link.contents[3].contents
+            src_dict[str(title_string)] = [count, str(coll_url)]
+            count +=1
+            ####################################################
+            #uncomment to check the output of the parsing
+            #print title_string
+            #print coll_url
+            ####################################################
+        sorted_dict = sorted(src_dict.iteritems(), key=operator.itemgetter(1))
+        return sorted_dict
+    
+    if type_of_parse == 'match_user':
+        count = 0
+        for link in soup.find_all('a', href=re.compile('wallbase.cc/user/profile/\d+')):
+            if link.contents[1]:
+                user_url = link.get('href')
+                user_name = link.contents[1]
+                src_dict[user_name] = [count, user_url]
+                count +=1
+            ####################################################
+            #uncomment to check the output of the parsing
+            #print title_string
+            #print user_url
+            #print user_name
+            #print src_dict
+            ####################################################
+        sorted_dict = sorted(src_dict.iteritems(), key=operator.itemgetter(1))
+        return sorted_dict
+            
+    
+    
+    
+    
+    
+    if type_of_parse == 'match_imgs':
+        pass
+    if type_of_parse == 'get_imgs':
+        pass
+
+
+
+
+
+
+
 def read_config(config_dir):
     
     #instantiate c as a configparser class
@@ -378,7 +445,7 @@ def output_html_to_file(url_html, dest_dir = '.'):
     
     #This code will output the html of the search page, needs fed a req.open()
     dir_check(dest_dir)
-    filename = 'page.html'
+    filename = 'deleteme.html'
     FILE = open(os.path.join(dest_dir,filename), "w")
     FILE.writelines(url_html)
     print "HTML file written to:\n", os.path.abspath(os.path.join(dest_dir, filename))
@@ -419,135 +486,151 @@ def dl_favorites(dest_dir = ''):
     #This is needed here becuase you can't download images from favorites without logging in
     #Should probably move this to a method of it's own to just return the fav_list_html file
     print "#" * 80 + '\n' + "+" * 26 + 'Login required to dl favorites' + "+" *24 + "\n" + "#" * 80 + '\n' + 'Please enter your username:'
-    user = raw_input()
+    user_name = raw_input()
     print "Please enter your password:"
     passw = raw_input()
-    wallbase_auth(user, passw)
-    login_vals = {'usrname': user, 'pass': passw, 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
+    wallbase_auth(user_name, passw)
+    login_vals = {'usrname': user_name, 'pass': passw, 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
     login_data = urllib.urlencode(login_vals)
     http_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc http://wallbase.cc/user/adult_confirm/1 '} 
-    fav_src_dict ={}
+    user_collection_user = {}
 
-    
     #Code to the let the user download a different users collection
-    print 'Would you like to download somebody elses favorites collections?(y or n):'
+    print 'Would you like to download somebody else\'s favorites collections?(y or n):'
     choice = raw_input()
     if choice in yes_list:
         print "Please type the name of the user whos favorites you would like to download:"
-        user_collection_user = {}
         user_collection_user['user_title'] = raw_input()
-        encoded_user = urllib.urlencode(user_collection_user)
-        user_list_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc http://wallbase.cc/users/all/ '} 
-        user_list_url = "http://wallbase.cc/users/all"
-        user_req = urllib2.Request(user_list_url, encoded_user, user_list_headers)    
-        user_list_resp = urllib2.urlopen(user_req)
-        user_list_html = user_list_resp.read()
-        match_user_num = re.search(r'profile\S(\d+)\S\sclass="user-link"\sstyle="\S+\s\S+\s\S+\s\S+\s\S*\s' + user_collection_user['user_title'] + '\W', user_list_html)   #style="color:[\w+]"\starget="\w+"><img\ssrc="\S+"\sstyle="\S+">"%s"' %(user_collection_user), user_list_html
-            
-        if match_user_num:   
-            favorites_url = 'http://wallbase.cc/user/profile/' + match_user_num.group(1) + '/favorites'
-        else:
-            print "User doesn't exist, check your spelling and try again"
-            sys.exit(1)
+    else:
+        user_collection_user['user_title'] = user_name  
+    encoded_user = urllib.urlencode(user_collection_user)
+    user_list_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc http://wallbase.cc/users/all/ '} 
+    user_list_url = "http://wallbase.cc/users/all"
+    user_req = urllib2.Request(user_list_url, encoded_user, user_list_headers)    
+    user_list_resp = urllib2.urlopen(user_req)
+    user_list_html = user_list_resp.read()
+    #new code to match user names using parsing
+    temp_user_html_file = os.path.join(dest_dir, 'deleteme.html')
+    output_html_to_file(user_list_html, dest_dir)
+    match_user = html_parse(temp_user_html_file, 'match_user')
+    print "\nChoose the number of the user that matches the one you want to download from:"
+    for user in match_user:
+        match_user_name = ''.join(e for e in user[0] if e.isalnum())
+        #Your own url profile is always matched, so ignore it. If it's not longer than that exit
+        if len(match_user) == 1:
+            print "That user could not be found. Check your spelling and try again"
+            sys.exit()
+        if match_user_name !='':
+            print 'User#:', user[1][0], "User:", match_user_name
         
-    else: #download the logged in users collection
-        favorites_url = 'http://wallbase.cc/user/favorites'
+    #code to valide the input of the user
+    count = 0
+    val_input = True   
+    while val_input:
+        try:
+            user_num = raw_input() 
+            user_num = int(user_num)
+            match_user_name = ''.join(e for e in user[0] if e.isalnum())
+            favorites_url = match_user[user_num][1][1]
+            #print 'Valid number found. Moving on...'
+            val_input = False
+        except ValueError:
+            print "Please type a valid number"
+            count +=1
+            if count ==3:
+                print 'Please try again when you learn how to type'
+                sys.exit(1)
+            else:
+                continue   
+    favorites_url = favorites_url + '/favorites'
+    os.unlink(os.path.join(dest_dir, 'deleteme.html'))
+        
     fav_req = urllib2.Request(favorites_url, login_data, http_headers)
     fav_resp = urllib2.urlopen(fav_req)
     fav_list_html = fav_resp.read()
-    
-    #If a different user selected, find the other users collections and set the fav_src_dict from that
-    if choice in yes_list:
-        fav_src_url = re.findall(r'(http://wallbase.cc/user/collection/\d+)"', fav_list_html)
-        
-        #one that's working - Will not catch really long and stupid favorites collection names :/
-        fav_src_name = re.findall(r'div class="title">(\S*\s*\S*\s*\S*\s*\S*\s*\S*\s*\S*)</div>\W*</a>', fav_list_html)
-
-    #if different user not selected, populate fav_src_dict from the logged in users favorites
-    else:
-        #Begin matching the favorites urls and their names
-        fav_src_url = re.findall(r'(http://wallbase.cc/user/favorites/\d+)" class="collink"><span class="counter">\d+</span>\s\w+\s*\w*', fav_list_html)
-        fav_src_name = re.findall(r'</span>\s(\w+\s*\w*)', fav_list_html)
-    
-    #populate the fav_src_dict with names and urls of favorites
-    count = 0
-    while count < len(fav_src_name):
-        fav_src_dict[fav_src_name[count]] = fav_src_url[count]
-        count +=1
-  
+    output_html_to_file(fav_list_html, dest_dir)
+    html_file_loc = os.path.join(dest_dir, 'deleteme.html')
     #If dest_dir is blank, enter a custom dir
     if dest_dir == '':
-        print  ('Please enter the path you wish to use for your favorites e.g. c:\\favorites\nLeave blank use the current directory of the Python interpreter\n') 
+        print  ('\nPlease enter the path you wish to use for your favorites e.g. c:\\favorites\nLeave blank use the current directory of the Python interpreter\n') 
         dest_dir = raw_input()
-    print 'Please type the name of the favorites folder you would like to download now e.g. Minimalist\n'
-    print fav_src_dict.keys()
-    collection_name = raw_input() 
-  
-    #Field validation to check that what the user typed matched an available favorites folder
-    if collection_name == '':
-        print "Please type something"
-    count = 0
-    while collection_name not in fav_src_dict and count <2:
-        print "That is not a valid favorite folder, %d chances left" %(2 - count)
-        collection_name = raw_input()
-        count +=1
-        if count ==2 and collection_name not in fav_src_dict:
-            print 'Please try again when you learn how to type'
-            sys.exit(1)
-    else:
-        dest_dir = os.path.join(dest_dir, collection_name)
-        
-        if choice in yes_list:
-            dest_dir = (os.path.join(user_collection_user['user_title'], dest_dir))
+    
+    #Call the html_parse method and get the dict with collection urls and names
+    #Returned in Unicode!!! 
+    fav_src_dict = html_parse(html_file_loc, 'collection')
+    os.unlink(html_file_loc)
 
-        #Check if the favorites directory exists
-        dir_check(dest_dir)
+    
+    temp_coll_list = []
+    print 'Please type the number of the favorites folder you would like to download now e.g. 1, 2, 3, etc...\n'
+    
+    for collection in fav_src_dict:
+        print collection[1][0], ''.join(e for e in collection[0][3:] if e.isalnum()) 
+        temp_coll_list.append(str(collection[1][0]))
         
-        #Prompt for organizing folders by purity
-        choices = ['False', 'True']
-        print ('Would you like to organize your images in folders based on purity level?\nOptions: True or False. (default is False)\n') 
-        dl_to_diff_folders = raw_input()
-        if dl_to_diff_folders == '':
-            dl_to_diff_folders = 'False'
-        del count
-        count = 0
-        while dl_to_diff_folders not in choices and count < 2:
-            print "Please enter True or False without quotes to make your choice."
-            dl_to_diff_folders = raw_input()
+    #code to valide the input of the user
+    count = 0
+    val_input = True   
+    while val_input:
+        try:
+            collection_number = raw_input() 
+            collection_number = int(collection_number)
+            collection_name = ''.join(e for e in fav_src_dict[collection_number][0][3:] if e.isalnum())
+            dl_url = fav_src_dict[collection_number][1][1]
+            #print 'Valid number found. Moving on...'
+            val_input = False
+        except ValueError:
+            print "Please type a valid number"
             count +=1
-            if count == 2 and dl_to_diff_folders not in choices:
-                print "Please try again when you learn how to type"
+            if count ==3:
+                print 'Please try again when you learn how to type'
                 sys.exit(1)
-        
-        #User these variables to populate a config file if it doesn't already exist
-        search_contents = {}
-        user_contents = {}
-        if choice in yes_list:
-            search_contents['dl_user_name'] = user_collection_user['user_title']
-            search_contents['dl_user_number'] = match_user_num.group(1)
-        else:
-            search_contents['dl_user_name'] = user
-            search_contents['dl_user_number'] = 'n/a'
-            
-        search_contents['dl_to_diff_folders'] = dl_to_diff_folders
-        search_contents['collection_name'] = collection_name
-        search_contents['start_range'] = '0'
-        search_contents['max_range'] = '3000'
-        user_contents ['username'] = user
-        user_contents['password'] = passw
-        user_contents['destination_directory'] = os.path.abspath(dest_dir)
-        user_contents['collection_query'] = 'True'
-        
-        #If it already exists, read from it and download from there
-        if os.path.isfile(os.path.join(dest_dir, collection_name + '.ini')):
-            print '%s exists already, resuming from it. ' %(collection_name + '.ini')
-            search_contents, user_contents = read_config(dest_dir)
-        
-        #Updating the config file if one doesn't exists
-        write_config(dest_dir, search_contents, user_contents )
-        
-        #call to actually begin downloads of the favorites
-        download_walls(dest_dir, '&', fav_src_dict[collection_name], int(search_contents['start_range']) , int(search_contents['max_range']), dl_to_diff_folders)
+            else:
+                continue
+    dest_dir = os.path.join(os.path.join(dest_dir, user_collection_user['user_title'] ), collection_name)
+    dir_check(dest_dir)
+    
+    #Prompt for organizing folders by purity
+    choices = ['False', 'True']
+    print ('Would you like to organize your images in folders based on purity level?\nOptions: True or False. (default is False)\n') 
+    dl_to_diff_folders = raw_input()
+    if dl_to_diff_folders == '':
+        dl_to_diff_folders = 'False'
+    del count
+    count = 0
+    while dl_to_diff_folders not in choices and count < 2:
+        print "Please enter True or False without quotes to make your choice."
+        dl_to_diff_folders = raw_input()
+        count +=1
+        if count == 2 and dl_to_diff_folders not in choices:
+            print "Please try again when you learn how to type"
+            sys.exit(1)
+    
+    #User these variables to populate a config file if it doesn't already exist
+    search_contents = {}
+    user_contents = {}
+    search_contents['dl_user_name'] = user_collection_user['user_title']
+    search_contents['dl_user_number'] = 'n/a'
+    search_contents['dl_to_diff_folders'] = dl_to_diff_folders
+    search_contents['collection_name'] = collection_name
+    search_contents['start_range'] = '0'
+    search_contents['max_range'] = '3000'
+    user_contents ['username'] = user_name
+    user_contents['password'] = passw
+    user_contents['destination_directory'] = os.path.abspath(dest_dir)
+    user_contents['collection_query'] = 'True'
+    
+    #If it already exists, read from it and download from there
+    if os.path.isfile(os.path.join(dest_dir, collection_name + '.ini')):
+        print '%s exists already, resuming from it. ' %(collection_name+ '.ini')
+        search_contents, user_contents = read_config(dest_dir)
+    
+    #Updating the config file if one doesn't exists
+    write_config(dest_dir, search_contents, user_contents )
+    
+    #call to actually begin downloads of the favorites
+    download_walls(dest_dir, '&', dl_url, int(search_contents['start_range']) , int(search_contents['max_range']), dl_to_diff_folders)
+
 def dl_config(config_dir):
     '''This method allows you to kick off a query without going through any user prompts
     by simply feeding it a configuration file location and telling it to go.
@@ -813,7 +896,6 @@ def main():
         except IndexError:
             print 'Using default directory of', os.path.abspath(config_dir)
             dl_config(config_dir)
-
 #dl_favorites('')
 #dl_config(r'.')
 ##uncomment to run the main method from the console        
