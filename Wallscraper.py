@@ -66,20 +66,15 @@ def html_parse(html_file, type_of_parse):
     #If I'm parsing a users collections, use the following parsing code
     if type_of_parse == 'collection':
         count = 0
-        #Find all links that match the following wallbase.cc/user/collection/xxxxxx
         for link in soup.find_all('a', href=re.compile('wallbase.cc/user/collection/\d+')):
             coll_url = link.get('href')
             title_string = link.contents[3].contents
             src_dict[str(title_string)] = [count, str(coll_url)]
             count +=1
-            ####################################################
-            #uncomment to check the output of the parsing
-            #print title_string
-            #print coll_url
-            ####################################################
         sorted_dict = sorted(src_dict.iteritems(), key=operator.itemgetter(1))
         return sorted_dict
     
+    #If i'm looking for the name of a user, use this parse
     if type_of_parse == 'match_user':
         count = 0
         for link in soup.find_all('a', href=re.compile('wallbase.cc/user/profile/\d+')):
@@ -88,29 +83,40 @@ def html_parse(html_file, type_of_parse):
                 user_name = link.contents[1]
                 src_dict[user_name] = [count, user_url]
                 count +=1
-            ####################################################
-            #uncomment to check the output of the parsing
-            #print title_string
-            #print user_url
-            #print user_name
-            #print src_dict
-            ####################################################
         sorted_dict = sorted(src_dict.iteritems(), key=operator.itemgetter(1))
         return sorted_dict
-            
     
-    
-    
-    
-    
+    #If I'm building a dictionary of image urls, use this
     if type_of_parse == 'match_imgs':
-        pass
-    if type_of_parse == 'get_imgs':
-        pass
+        wall_links = []
+        for link in soup.find_all('a', href=re.compile('wallbase.cc/wallpaper/\d+')):
+            wall_links.append(link.get('href'))
+        return wall_links
+    
+    #Use this code to match img sources to the img link
+    if type_of_parse == 'match_imgs_src':
+        img_links =[]
+        purity_link = []
+        for link in soup.find_all('img', src=re.compile(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)')):
+            img_links.append(link.get('src'))
+        for link in soup.find_all('li', class_=re.compile(r'[c|l]')):
+            purity_link.append(str(link))
+        for purity in purity_link:
+            purity_match = re.search(r'class="[c|l]\sselected\s(\w+)', purity)
+            if purity_match:
+                purity_link = purity_match.group(1)
+        return img_links, purity_link
+    
+    
 
-
-
-
+    #Use this code to parse out the active number of walls from the page
+    if type_of_parse == 'active_walls':
+        active_walls = ""
+        for link in soup.find_all('a', class_=("walls-link a active")): 
+            active_walls = str(link.contents[0])
+            regex_walls = re.search(r'(\d+),*(\d*),*(\d*)', active_walls)
+            return regex_walls.group()
+        
 
 
 
@@ -269,34 +275,20 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
             sleep(30)
             continue
         break
-    
+############################################################################################################################################
+#New code for matching wallpapers
     #Populate an object with the source html
     url_html = search_url.read()
+    temp_file_loc = os.path.join(dest_dir, 'deleteme')
+    output_html_to_file(url_html, temp_file_loc)  
+    matchs = html_parse(temp_file_loc, 'match_imgs')
+    num_of_walls = html_parse(temp_file_loc, 'active_walls')
+    os.unlink(temp_file_loc)
+    
+    if num_of_walls == '':
+        print "No Wallpapers found, try another query"
+        sys.exit(1)
         
-    #Uncomment if you wish to have an html file to verify your query is working properly
-    #output_html_to_file(url_html, dest_dir)   
-    
-    #Regular expression used to find valid wallpaper urls within the index.html
-    matchs = re.findall(r'http://wallbase.cc/wallpaper/\d+', url_html)
-    
-    #regex that finds the number of search results, up to a billion
-    active_walls = re.search(r'a\sactive"><span>(\d+),*(\d*),*(\d*)', url_html)
-    
-    #attempts to set the number of wallpapers to the regex results
-    try:
-        if active_walls.group(2) == '0' and active_walls.group(3) == '0':
-            num_of_walls = active_walls.group(1)
-        if active_walls.group(3) == '0' and active_walls.group(2) != '0':
-            num_of_walls = active_walls.group(1) + active_walls.group(2)
-        else: 
-            num_of_walls = active_walls.group(1) + active_walls.group(2) + active_walls.group(3)
-    except AttributeError:
-        try:
-            active_walls = re.search(r'count\s\S\s(\d+)', url_html)
-            num_of_walls = active_walls.group(1)
-        except AttributeError:
-            print 'number of wallpapers not found'
-    
     #The number of wallpapers is used to limit the matches as well as determine start and stop ranges in this method
     print 'Currently processing matches'
     if int(num_of_walls) > max_range:
@@ -317,21 +309,23 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                 img_src_req = urllib2.Request(match, blank_data, search_headers)
                 img_src_open = urllib2.urlopen(img_src_req)
                 img_src_html = img_src_open.read()
+                output_html_to_file(img_src_html, temp_file_loc)
                 
-                #regex for locating the wallpapers img src url and appending the src and name to the dictionary
-                img_match_src = re.search(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)', img_src_html)
-
-                #Added a regex to tag each wallpaper with it's purity setting
-                #so that you can download the wallpaper to a different folder
-                #if you wish.                
+                #Parsing of the html for the source url
+                img_match_src, purity_match = html_parse(temp_file_loc, 'match_imgs_src')
+                
+                #####
+                ####Left of here, need to finish up matching and remove use of the img-name-dict
+                #####
+                #Purity Matching
                 if img_match_src:
                     if dl_to_diff_folders == 'True':
-                        purity_match = re.search(r'class="[c|l]\sselected\s(\w+)', img_src_html)
                         img_names_dict[img_match_src.group(1)] = (img_match_src.group(0), purity_match.group(1))
                     else:
                         img_names_dict[img_match_src.group(1)] = img_match_src.group(0)
-                    
-                    #status of matches based on range or limits
+                        #Delete the temporary html file to clean-ness
+                        os.unlink(temp_file_loc)
+
                     if max_range < int(num_of_walls):
                         print "matched: ",  start_range +1 , '/', max_range
                     else:
@@ -346,7 +340,90 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                 sleep(60)
                 continue
             break
-        
+    
+
+############################################################################################################################################
+
+  
+############################################################################################################################################
+#Old functional code for matching num of walls and wall papers
+    #Populate an object with the source html
+#    url_html = search_url.read()
+#    #Uncomment if you wish to have an html file to verify your query is working properly
+#    #output_html_to_file(url_html, dest_dir)   
+#    
+#    #Regular expression used to find valid wallpaper urls within the index.html
+#    matchs = re.findall(r'http://wallbase.cc/wallpaper/\d+', url_html)
+#    
+#    #regex that finds the number of search results, up to a billion
+#    active_walls = re.search(r'a\sactive"><span>(\d+),*(\d*),*(\d*)', url_html)
+#    
+#    #attempts to set the number of wallpapers to the regex results
+#    try:
+#        if active_walls.group(2) == '0' and active_walls.group(3) == '0':
+#            num_of_walls = active_walls.group(1)
+#        if active_walls.group(3) == '0' and active_walls.group(2) != '0':
+#            num_of_walls = active_walls.group(1) + active_walls.group(2)
+#        else: 
+#            num_of_walls = active_walls.group(1) + active_walls.group(2) + active_walls.group(3)
+#    except AttributeError:
+#        try:
+#            active_walls = re.search(r'count\s\S\s(\d+)', url_html)
+#            num_of_walls = active_walls.group(1)
+#        except AttributeError:
+#            print 'number of wallpapers not found'
+#    
+#    #The number of wallpapers is used to limit the matches as well as determine start and stop ranges in this method
+#    print 'Currently processing matches'
+#    if int(num_of_walls) > max_range:
+#        print '%s wallpapers found\n%d queued for dl, out of %d' %(num_of_walls, max_range - start_range, max_range)
+#    elif (max_range > int(num_of_walls)) and (int(num_of_walls)-start_range) > 0:
+#        print 'Found %d wallpapers\nDownloading %d wallpapers' % (int(num_of_walls), int(num_of_walls)-start_range) 
+#    
+#    #For each img url, find the source url of that img in it's own html file
+#    for match in matchs:
+#    
+#        #while loop used stop matching once the max is reached
+#        while True and start_range < max_range:
+#        
+#            try: #and request the img src url, if http error, wait and try again
+#                sleep(.15)
+#            
+#                #request for src html of matched image
+#                img_src_req = urllib2.Request(match, blank_data, search_headers)
+#                img_src_open = urllib2.urlopen(img_src_req)
+#                img_src_html = img_src_open.read()
+#                
+#                #regex for locating the wallpapers img src url and appending the src and name to the dictionary
+#                img_match_src = re.search(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)', img_src_html)
+#
+#                #Added a regex to tag each wallpaper with it's purity setting
+#                #so that you can download the wallpaper to a different folder
+#                #if you wish.                
+#                if img_match_src:
+#                    if dl_to_diff_folders == 'True':
+#                        purity_match = re.search(r'class="[c|l]\sselected\s(\w+)', img_src_html)
+#                        img_names_dict[img_match_src.group(1)] = (img_match_src.group(0), purity_match.group(1))
+#                    else:
+#                        img_names_dict[img_match_src.group(1)] = img_match_src.group(0)
+#                    
+#                    #status of matches based on range or limits
+#                    if max_range < int(num_of_walls):
+#                        print "matched: ",  start_range +1 , '/', max_range
+#                    else:
+#                        print "matched: ", start_range +1, '/', int(num_of_walls)
+#                    
+#                    #increment start number that's then returned to the other method for counting
+#                    start_range +=1
+#                else:
+#                    print 'Error: No img_src\'s found. Make sure you logged in.'
+#            except urllib2.URLError as detail:
+#                print "%s error encounted\nWaiting to try again" %(detail)
+#                sleep(60)
+#                continue
+#            break
+############################################################################################################################################
+
     #stop process if there are no more matches available
     if start_range >= 0 and len(img_names_dict) == 0: 
         print 'All wallpapers downloaded or already exist:\n"END OF LINE, TRON"'
@@ -896,6 +973,11 @@ def main():
         except IndexError:
             print 'Using default directory of', os.path.abspath(config_dir)
             dl_config(config_dir)
+#print html_parse(r'Y:\Users\Kyle\Documents\Workspace\WallScraper\resultspage.html', 'match_imgs')
+print html_parse(r'Y:\Users\Kyle\Documents\Workspace\WallScraper\imgsrc.html', 'match_imgs_src')
+#print html_parse(r'Y:\Users\Kyle\Documents\Workspace\WallScraper\resultspage.html', 'active_walls')
+
+
 #dl_favorites('')
 #dl_config(r'.')
 ##uncomment to run the main method from the console        
