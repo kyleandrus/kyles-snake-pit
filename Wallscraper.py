@@ -55,16 +55,17 @@ purity_bits = ('001', '011', '111')
 toplist_dict = {"0": "AllTime", "3m": '3Months', '2m':'2Months', '1m':'1Month', '2w':'2Weeks', '1w':'1Week', '3d':'3Days', '1d':'1Day'}
 yes_list = {'yes', 'y', 'Y', 'Yes', 'YES', 'YEs', 'yeS','yES'}
 
-def html_parse(html_file, type_of_parse):
+def html_parse(html_file, type_of_parse, login_vals = None):
     '''this method parses an html file and pulls out the data that is needed based on the type of parsing requested'''
-    #Opening an html_file for parsing
-    soup = BeautifulSoup(open(html_file))
+   
     
     #Dictionary used to store the contents of the parsing that will take place
     src_dict = {}
     
     #If I'm parsing a users collections, use the following parsing code
     if type_of_parse == 'collection':
+        #Opening an html_file for parsing
+        soup = BeautifulSoup(open(html_file))
         count = 0
         for link in soup.find_all('a', href=re.compile('wallbase.cc/user/collection/\d+')):
             coll_url = link.get('href')
@@ -76,6 +77,8 @@ def html_parse(html_file, type_of_parse):
     
     #If i'm looking for the name of a user, use this parse
     if type_of_parse == 'match_user':
+        #Opening an html_file for parsing
+        soup = BeautifulSoup(open(html_file))
         count = 0
         for link in soup.find_all('a', href=re.compile('wallbase.cc/user/profile/\d+')):
             if link.contents[1]:
@@ -88,6 +91,8 @@ def html_parse(html_file, type_of_parse):
     
     #If I'm building a dictionary of image urls, use this
     if type_of_parse == 'match_imgs':
+        #Opening an html_file for parsing
+        soup = BeautifulSoup(open(html_file))
         wall_links = []
         for link in soup.find_all('a', href=re.compile('wallbase.cc/wallpaper/\d+')):
             wall_links.append(link.get('href'))
@@ -95,6 +100,8 @@ def html_parse(html_file, type_of_parse):
     
     #Use this code to match img sources to the img link
     if type_of_parse == 'match_imgs_src':
+        #Opening an html_file for parsing
+        soup = BeautifulSoup(open(html_file))
         img_src = ''
         purity_link = []
         for link in soup.find_all('img', src=re.compile(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)')):
@@ -112,6 +119,8 @@ def html_parse(html_file, type_of_parse):
 
     #Use this code to parse out the active number of walls from the page
     if type_of_parse == 'active_walls':
+        #Opening an html_file for parsing
+        soup = BeautifulSoup(open(html_file))
         active_walls = ""
         num_of_walls = ""
         for link in soup.find_all('a', class_=("walls-link a active")): 
@@ -145,6 +154,23 @@ def html_parse(html_file, type_of_parse):
                 except AttributeError:
                     print 'number of wallpapers not found'
         
+    if type_of_parse == 'user_settings':
+        #code to pull thpp setting from the user page
+        login_data = urllib.urlencode(login_vals)
+        wallbase_auth(login_vals['usrname'], login_vals['pass'])
+        http_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc http://wallbase.cc/user/adult_confirm/1 '} 
+        settings_url = 'http://wallbase.cc/user/settings'
+        settings_req = urllib2.Request(settings_url, login_data, http_headers)
+        settings_resp = urllib2.urlopen(settings_req)
+        settings_html = settings_resp.read()
+        output_html_to_file(settings_html, '.')
+        html_file_loc = ('./deleteme.html')
+        soup = BeautifulSoup(open(html_file_loc))
+        for link in soup.find_all('input', id="filter_set_thpp"):
+            os.unlink(html_file_loc)
+            return link.get('value')
+        
+        
         
     #Need to add parsing for tag matching in the dl_config folder
     if type_of_parse == 'tag_match':
@@ -169,7 +195,7 @@ def read_config(config_dir):
         user_vars[option] = c.get("User Options", option)
         
     #set default for some things that the user isn't allowed to change, this should be dynamic, ugh
-    search_query['thpp'] = '32'
+    #search_query['thpp'] = '32'
     #Return the variables set from the config file to the dl_search method
     FILE.close()   
     return search_query, user_vars
@@ -233,7 +259,7 @@ def dir_check(directory):
     else: #create the path for the user and tell the user the name of the path
         print '%s | didn\'t exist, creating...' %(os.path.abspath(directory))
         os.makedirs(os.path.join(directory))
-def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, max_range = 2000, dl_to_diff_folders = "False"):
+def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, max_range = 2000, dl_to_diff_folders = "False", thpp = 32):
     """
     This method initiates the downloads the html matches urls, and uses a counter and range to limit the downloads
     """
@@ -271,7 +297,7 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
         print "We are looking for wallpapers in the url:\n",  url
         
         #Begin matching imgs in the html and pull the start number out of the resultant matches
-        start_range = match_imgs(url, dest_dir, encoded_query, start_range, max_range, dl_to_diff_folders)
+        start_range = match_imgs(url, dest_dir, encoded_query, start_range, max_range, dl_to_diff_folders, thpp)
         
         #reset the url since the match is completed
         url = temp_url
@@ -279,7 +305,7 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
         #Call to method used to actually download the images from the match
         #Uses dictionary of names:sources
         print "Deploying ninjas to steal wallpapers"
-        get_imgs(img_names_dict, start_range, dest_dir)
+        get_imgs(img_names_dict, start_range, dest_dir, thpp)
         
         #set the start range in the config_file to match the current start range, this makes it easier to pickup where you left off
         if dest_dir != ".":
@@ -290,7 +316,7 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
     if start_range >= max_range: #Stop downloads if max range is reached
         print 'Max range reached, stopping downloads'
         sys.exit(1)
-def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_folders = "False"):
+def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_folders = "False", thpp = 32):
 
     #url requests need values passed, when downloading favorites they're not necessary
     #so we send blank vals along with the reqeusts
@@ -313,7 +339,7 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     url_html = search_url.read()
     temp_file_loc = os.path.join(dest_dir, 'deleteme.html')
     #Save query as html and parse the html for results
-    output_html_to_file(url_html, dest_dir)  
+    output_html_to_file(url_html, dest_dir) 
     matchs = html_parse(temp_file_loc, 'match_imgs')
     num_of_walls = html_parse(temp_file_loc, 'active_walls')
     #delete the html to leave the directory clean
@@ -322,13 +348,17 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     if num_of_walls == "":
         print "No wallpapers found, try a different query"
         sys.exit(1)
+        
+    #Cast num_of_walls to int for easier comparisons
+    if num_of_walls.isdigit():       
+        num_of_walls = int(num_of_walls)
     
     #The number of wallpapers is used to limit the matches as well as determine start and stop ranges in this method
     print 'Currently processing matches'
-    if int(num_of_walls) > max_range:
-        print '%s wallpapers found\n%d queued for dl, out of %d' %(int(num_of_walls), max_range - start_range, max_range)
-    elif (max_range > int(num_of_walls)) and (int(num_of_walls) - start_range) > 0:
-        print 'Found %d wallpapers\nDownloading %d wallpapers' % (int(num_of_walls), int(num_of_walls) - start_range) 
+    if num_of_walls > max_range:
+        print '%s wallpapers found\n%d queued for dl, out of %d' %(num_of_walls, (max_range - start_range), max_range)
+    elif (max_range > num_of_walls) and (num_of_walls - start_range) > 0:
+        print 'Found %d wallpapers\nDownloading %d wallpapers' % (num_of_walls, num_of_walls - start_range) 
     
     #For each img url, find the source url of that img in it's own html file
     for match in matchs:
@@ -357,10 +387,10 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                         img_names_dict[img_name] = img_match_src
                         #Delete the temporary html file for cleanness
 
-                    if max_range < int(num_of_walls):
+                    if max_range < num_of_walls:
                         print "matched: ",  start_range +1 , '/', max_range
                     else:
-                        print "matched: ", start_range +1, '/', int(int(num_of_walls))
+                        print "matched: ", start_range +1, '/', num_of_walls
                     
                     #increment start number that's then returned to the other method for counting
                     start_range +=1
@@ -371,9 +401,8 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                 sleep(60)
                 continue
             break
-        
-    #delete html after each match to keep directory clean
-    os.unlink(temp_file_loc)
+        #delete html after each match to keep directory clean
+        os.unlink(temp_file_loc)
     
     #stop process if there are no more matches available
     if start_range >= 0 and len(img_names_dict) == 0: 
@@ -382,12 +411,12 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     else: print len(img_names_dict), " Matches successfully made."
     
     #used for returning the proper number of matches if the number of matches is less than the thumbnails per page
-    if len(img_names_dict) < 32:
-        return (start_range + (32 - len(img_names_dict)))
+    if len(img_names_dict) < thpp:
+        return (start_range + (thpp - len(img_names_dict)))
     else:
         #start number returned that's used for incrementing elsewhere
         return start_range
-def get_imgs(img_names_dict, start_range, dest_dir = ''):
+def get_imgs(img_names_dict, start_range, dest_dir = '', thpp = 32):
     """This method is used to retrieve images from a dictionary of wallpapers and urls,
     saves them to your hard drive, and if they already exist skips the download."""
 
@@ -400,10 +429,10 @@ def get_imgs(img_names_dict, start_range, dest_dir = ''):
     
     #The 32 below is because the thpp is set to 32, should make this dynamic
     #logic is such that if the passed in start number is less than 30, it downlaods the correct # of imgs
-    if start_range < 32:
+    if start_range < thpp:
         start_range -=  start_range
-    elif start_range >= 32:
-        start_range -= 32
+    elif start_range >= thpp:
+        start_range -= thpp
     
     #Iterate through the loop and download images in the dictionary
     for img in img_names_dict:
@@ -569,9 +598,9 @@ def dl_favorites(dest_dir = ''):
                 sys.exit(1)
             else:
                 continue   
+            
     favorites_url = favorites_url + '/favorites'
     os.unlink(os.path.join(dest_dir, 'deleteme.html'))
-        
     fav_req = urllib2.Request(favorites_url, login_data, http_headers)
     fav_resp = urllib2.urlopen(fav_req)
     fav_list_html = fav_resp.read()
@@ -642,6 +671,7 @@ def dl_favorites(dest_dir = ''):
     search_contents['collection_name'] = collection_name
     search_contents['start_range'] = '0'
     search_contents['max_range'] = '3000'
+    search_contents['thpp'] = ""
     user_contents ['username'] = user_name
     user_contents['password'] = passw
     user_contents['destination_directory'] = os.path.abspath(dest_dir)
@@ -656,7 +686,8 @@ def dl_favorites(dest_dir = ''):
     write_config(dest_dir, search_contents, user_contents )
     
     #call to actually begin downloads of the favorites
-    download_walls(dest_dir, '&', dl_url, int(search_contents['start_range']) , int(search_contents['max_range']), dl_to_diff_folders)
+    search_contents['thpp'] = html_parse(html_file_loc, 'user_settings', login_vals)
+    download_walls(dest_dir, '&', dl_url, int(search_contents['start_range']) , int(search_contents['max_range']), dl_to_diff_folders, int(search_contents['thpp']))
 
 def dl_config(config_dir):
     '''This method allows you to kick off a query without going through any user prompts
@@ -690,12 +721,15 @@ def dl_config(config_dir):
                         'start_range' : start_range, 'max_range' : max_range, 'query_name': query_name, 'dl_to_diff_folders' : dl_to_diff_folders, 'time': toplist_time})
     user_vars = ({'destination_directory': dest_dir, 'username': username, 'password': password})
     ###############################################################################################################
-        
+
     #instantiate c as a configparser class
     c = ConfigParser.ConfigParser()
     download_url = "http://wallbase.cc/search"
   
-        
+    #Grabbing thpp setting from the server, you can't set it manually it I force it here
+    login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
+    search_query['thpp'] = html_parse('', 'user_settings', login_vals)
+    
     #If a Custom_Search.ini file doesn't exist in the given path, create one   
     if not os.path.exists(os.path.join(config_dir, 'Custom_Search.ini')):
         print 'No Custom_Search.ini file found, creating new default .ini'
@@ -727,6 +761,8 @@ def dl_config(config_dir):
             for option in c.options('Search Query'):
                 search_query[option] = c.get('Search Query', option)
                 #print "\t", option, "=", c.get('Search Query', option)
+            #Grabbing thpp setting from the server, you can't set it manually it I force it here
+            search_query['thpp'] = html_parse('', 'user_setting', login_vals)
         if c.has_section('User Options'):
             #print 'User Options'
             for option in c.options('User Options'):
@@ -740,6 +776,8 @@ def dl_config(config_dir):
         #Return the variables set from the config file to the dl_search method
         FILE.close() 
         
+    
+   
     
     #Code to base the downloads on the BEST OF TOPLIST on wallbase
     if c.get("Search Query", 'time') in toplist_dict:
@@ -768,7 +806,10 @@ def dl_config(config_dir):
         #set the download url to toplist and download walls. This url doesn't need an encoded query
         download_url = 'http://wallbase.cc/toplist'
         wallbase_auth(user_vars['username'], user_vars['password'])
-        download_walls(toplist_dir, search_query, download_url, int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
+        #Grabbing thpp setting from the server, you can't set it manually it I force it here
+        login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
+        search_query['thpp'] = html_parse('', 'user_settings', login_vals)
+        download_walls(toplist_dir, search_query, download_url, int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'], int(search_query['thpp']))
     
     #If the search query is based on a tag: query, then the destionation directory will be created using the name of the tag, not the tag number.
     elif "tag:" in c.get("Search Query", 'query'):
@@ -833,7 +874,10 @@ def dl_config(config_dir):
         #encode the query and download the wallpapers
         encoded_query = urllib.urlencode(search_query)
         wallbase_auth(user_vars['username'], user_vars['password'])
-        download_walls(new_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
+        #Grabbing thpp setting from the server, you can't set it manually it I force it here
+        login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
+        search_query['thpp'] = html_parse('', 'user_settings', login_vals)
+        download_walls(new_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'], int(search_query['thpp']))
     
     #This code creates the directories based on the Query name
     elif c.get("Search Query", 'query') != '':
@@ -863,7 +907,10 @@ def dl_config(config_dir):
         #encode the query and download the wallpapers
         encoded_query = urllib.urlencode(search_query)
         wallbase_auth(user_vars['username'], user_vars['password'])
-        download_walls(new_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
+        #Grabbing thpp setting from the server, you can't set it manually it I force it here
+        login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
+        search_query['thpp'] = html_parse('', 'user_settings', login_vals)
+        download_walls(new_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'], int(search_query['thpp']))
 
     #Else, if the search query is blank, it's not a toplist download, and it's not a tag: download
     else:
@@ -889,6 +936,9 @@ def dl_config(config_dir):
         #encode the query and download the wallpapers
         encoded_query = urllib.urlencode(search_query)
         wallbase_auth(user_vars['username'], user_vars['password'])
+        #Grabbing thpp setting from the server, you can't set it manually it I force it here
+        login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
+        search_query['thpp'] = html_parse('', 'user_settings', login_vals)
         download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
 def logout():
     '''This sub-method when invoked will clear all cookies
@@ -923,7 +973,7 @@ def main():
         except IndexError:
             print 'Using default directory of', os.path.abspath(config_dir)
             dl_config(config_dir)
-#print html_parse(r"Y:\Users\Kyle\Documents\Workspace\WallScraper\resultspage.html", "active_walls")
+#html_parse(r"Y:\Users\Kyle\Documents\Workspace\WallScraper\settings.html", "user_settings")
 #dl_favorites('')
 #dl_config(r'.')
 ##uncomment to run the main method from the console        
