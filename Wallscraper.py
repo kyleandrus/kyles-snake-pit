@@ -317,11 +317,9 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     matchs = html_parse(temp_file_loc, 'match_imgs')
     num_of_walls = html_parse(temp_file_loc, 'active_walls')
     #delete the html to leave the directory clean
-#    os.unlink(temp_file_loc)
+    os.unlink(temp_file_loc)
     
-    #Need to fix this to get the number of wallpapers from the bestof downloads somehow
     if num_of_walls == "":
-        #num_of_walls = max_range
         print "No wallpapers found, try a different query"
         sys.exit(1)
     
@@ -926,7 +924,7 @@ def main():
             print 'Using default directory of', os.path.abspath(config_dir)
             dl_config(config_dir)
 #print html_parse(r"Y:\Users\Kyle\Documents\Workspace\WallScraper\resultspage.html", "active_walls")
-dl_favorites('')
+#dl_favorites('')
 #dl_config(r'.')
 ##uncomment to run the main method from the console        
 if __name__ == "__main__":
