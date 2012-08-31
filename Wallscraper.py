@@ -113,10 +113,37 @@ def html_parse(html_file, type_of_parse):
     #Use this code to parse out the active number of walls from the page
     if type_of_parse == 'active_walls':
         active_walls = ""
+        num_of_walls = ""
         for link in soup.find_all('a', class_=("walls-link a active")): 
             active_walls = str(link.contents[0])
             regex_walls = re.search(r'(\d+),*(\d*),*(\d*)', active_walls)
+            ###########################
+            #regex that finds the number of search results, up to a billion
+            active_walls = re.search(r'a\sactive"><span>(\d+),*(\d*),*(\d*)', active_walls)
             return regex_walls.group()
+        #Will only reach this point if the first for loop doesn't return any values for active walls.
+        if True:
+            #attempts to set the number of wallpapers to the regex results
+            try:
+                if active_walls.group(2) == '0' and active_walls.group(3) == '0':
+                    num_of_walls = active_walls.group(1)
+                    return num_of_walls
+                if active_walls.group(3) == '0' and active_walls.group(2) != '0':
+                    num_of_walls = active_walls.group(1) + active_walls.group(2)
+                    return num_of_walls
+                else: 
+                    num_of_walls = active_walls.group(1) + active_walls.group(2) + active_walls.group(3)
+                    return num_of_walls
+            except AttributeError:
+                try:
+                    FILE = open(html_file)
+                    html_input = FILE.read()
+                    active_walls = re.search(r'count\s\S\s(\d+)', html_input)
+                    FILE.close()
+                    num_of_walls = active_walls.group(1)
+                    return num_of_walls
+                except AttributeError:
+                    print 'number of wallpapers not found'
         
         
     #Need to add parsing for tag matching in the dl_config folder
@@ -290,20 +317,20 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     matchs = html_parse(temp_file_loc, 'match_imgs')
     num_of_walls = html_parse(temp_file_loc, 'active_walls')
     #delete the html to leave the directory clean
-    os.unlink(temp_file_loc)
+#    os.unlink(temp_file_loc)
     
     #Need to fix this to get the number of wallpapers from the bestof downloads somehow
-    if num_of_walls == None:
-        num_of_walls = max_range
-        print "Best of or toplist detected, setting downlaods to max range"
-        #sys.exit(1)
+    if num_of_walls == "":
+        #num_of_walls = max_range
+        print "No wallpapers found, try a different query"
+        sys.exit(1)
     
     #The number of wallpapers is used to limit the matches as well as determine start and stop ranges in this method
     print 'Currently processing matches'
-    if num_of_walls > max_range:
-        print '%s wallpapers found\n%d queued for dl, out of %d' %(num_of_walls, max_range - start_range, max_range)
-    elif (max_range > num_of_walls) and (num_of_walls - start_range) > 0:
-        print 'Found %d wallpapers\nDownloading %d wallpapers' % (num_of_walls, num_of_walls - start_range) 
+    if int(num_of_walls) > max_range:
+        print '%s wallpapers found\n%d queued for dl, out of %d' %(int(num_of_walls), max_range - start_range, max_range)
+    elif (max_range > int(num_of_walls)) and (int(num_of_walls) - start_range) > 0:
+        print 'Found %d wallpapers\nDownloading %d wallpapers' % (int(num_of_walls), int(num_of_walls) - start_range) 
     
     #For each img url, find the source url of that img in it's own html file
     for match in matchs:
@@ -332,10 +359,10 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                         img_names_dict[img_name] = img_match_src
                         #Delete the temporary html file for cleanness
 
-                    if max_range < num_of_walls:
+                    if max_range < int(num_of_walls):
                         print "matched: ",  start_range +1 , '/', max_range
                     else:
-                        print "matched: ", start_range +1, '/', int(num_of_walls)
+                        print "matched: ", start_range +1, '/', int(int(num_of_walls))
                     
                     #increment start number that's then returned to the other method for counting
                     start_range +=1
@@ -898,8 +925,8 @@ def main():
         except IndexError:
             print 'Using default directory of', os.path.abspath(config_dir)
             dl_config(config_dir)
-#html_parse(r"Y:\Users\Kyle\Documents\Workspace\WallScraper\resultspage.html", "active_walls")
-#dl_favorites('')
+#print html_parse(r"Y:\Users\Kyle\Documents\Workspace\WallScraper\resultspage.html", "active_walls")
+dl_favorites('')
 #dl_config(r'.')
 ##uncomment to run the main method from the console        
 if __name__ == "__main__":
