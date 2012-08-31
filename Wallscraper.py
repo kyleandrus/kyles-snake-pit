@@ -118,6 +118,7 @@ def html_parse(html_file, type_of_parse):
             regex_walls = re.search(r'(\d+),*(\d*),*(\d*)', active_walls)
             return regex_walls.group()
         
+        
     #Need to add parsing for tag matching in the dl_config folder
     if type_of_parse == 'tag_match':
         pass
@@ -291,16 +292,18 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     #delete the html to leave the directory clean
     os.unlink(temp_file_loc)
     
-    if num_of_walls == '':
-        print "No Wallpapers found, try another query"
-        sys.exit(1)
-        
+    #Need to fix this to get the number of wallpapers from the bestof downloads somehow
+    if num_of_walls == None:
+        num_of_walls = max_range
+        print "Best of or toplist detected, setting downlaods to max range"
+        #sys.exit(1)
+    
     #The number of wallpapers is used to limit the matches as well as determine start and stop ranges in this method
     print 'Currently processing matches'
-    if int(num_of_walls) > max_range:
+    if num_of_walls > max_range:
         print '%s wallpapers found\n%d queued for dl, out of %d' %(num_of_walls, max_range - start_range, max_range)
-    elif (max_range > int(num_of_walls)) and (int(num_of_walls)-start_range) > 0:
-        print 'Found %d wallpapers\nDownloading %d wallpapers' % (int(num_of_walls), int(num_of_walls)-start_range) 
+    elif (max_range > num_of_walls) and (num_of_walls - start_range) > 0:
+        print 'Found %d wallpapers\nDownloading %d wallpapers' % (num_of_walls, num_of_walls - start_range) 
     
     #For each img url, find the source url of that img in it's own html file
     for match in matchs:
@@ -329,7 +332,7 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                         img_names_dict[img_name] = img_match_src
                         #Delete the temporary html file for cleanness
 
-                    if max_range < int(num_of_walls):
+                    if max_range < num_of_walls:
                         print "matched: ",  start_range +1 , '/', max_range
                     else:
                         print "matched: ", start_range +1, '/', int(num_of_walls)
@@ -895,7 +898,7 @@ def main():
         except IndexError:
             print 'Using default directory of', os.path.abspath(config_dir)
             dl_config(config_dir)
-
+#html_parse(r"Y:\Users\Kyle\Documents\Workspace\WallScraper\resultspage.html", "active_walls")
 #dl_favorites('')
 #dl_config(r'.')
 ##uncomment to run the main method from the console        
