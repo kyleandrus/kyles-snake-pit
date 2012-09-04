@@ -967,11 +967,15 @@ def main():
         print "\nProper usage:\n\n\t[Wallscraper.py --favorites  'This allows you to download your own favorites collections from wallbase(username and password required!)]\n\n\t[Wallscraper.py --search 'This prompts the user to enter in specific search options and performs a query based on those options]\n\n\t[Wallscraper.py --config (directory where the CustomSearch_ini is located, or where you wish to create one. Leave blank for default e.g. c:\\Wallbase\\)]"; 
     
     #Default values passed to the method when called through a command line argument
-    fdest_dir = ''
+#    fdest_dir = ''
     config_dir = '.'
     if len(args) == 0:
         print "\n\nYou must enter an argument to proceed!"
     elif args[0] == '--favorites':
+        try:
+            fdest_dir = args[1]
+        except IndexError:
+            fdest_dir = ''
         dl_favorites(fdest_dir)
         del args[0:0]
     elif args[0] == '--config':
