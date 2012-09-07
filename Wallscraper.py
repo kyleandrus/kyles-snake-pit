@@ -947,7 +947,7 @@ def dl_config(config_dir):
         #Grabbing thpp setting from the server, you can't set it manually it I force it here
         login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
         search_query['thpp'] = html_parse('', 'user_settings', login_vals)
-        download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
+        download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'], int(search_query['thpp']))
 def logout():
     '''This sub-method when invoked will clear all cookies
         stored by this method and effectively log the user out.
