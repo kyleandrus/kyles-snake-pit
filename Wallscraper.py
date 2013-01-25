@@ -164,7 +164,7 @@ def html_parse(html_file, type_of_parse, login_vals = None):
             #Currently this regular expression is failing in certain cases, need to tighten it up
             #Regular expression used to separate the encoded url out from the javascript string
             #img_src = re.search(("[B]\S\S(\w+)\S"), src)
-            img_src = re.search(("B\W\W(\w+)\W\W"), src)
+            img_src = re.search((r"B\W\W(\w+[(=+/)]*)\W\W"), src)
             #############################################
             
             #Uncomment to print the encoded url
@@ -175,7 +175,7 @@ def html_parse(html_file, type_of_parse, login_vals = None):
             
             #Uncomment to print the decoded url
             #print img_src
-            img_name = re.search('(wallpaper-\d+\S+\w+)', img_src)
+            img_name = re.search('(wallpaper-*\d+\S+\w+)', img_src)
             
         for link in soup.find_all('li', class_=re.compile(r'[c|l]')):
             purity_link.append(str(link))
@@ -183,12 +183,7 @@ def html_parse(html_file, type_of_parse, login_vals = None):
             purity_match = re.search(r'class="[c|l]\sselected\s(\w+)', purity)
             if purity_match:
                 purity_link = purity_match.group(1)
-        try:
-            return img_src, img_name.group(), purity_link
-        except UnboundLocalError:
-            print "image doesn't exist anymore, skipping"
-            return img_src, "", purity_link
-            
+        return img_src, img_name.group(), purity_link
     
     
 
@@ -477,7 +472,7 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                     #delete html after each match to keep directory clean
                     os.unlink(temp_file_loc)
                 else:
-                    print 'Error: No img_src\'(s) found. Make sure you logged in.'
+                    print 'Error: No img_src\'s found. Make sure you logged in.'
             except urllib2.URLError as detail:
                 print "%s error encounted\nWaiting to try again" %(detail)
                 sleep(60)
@@ -1059,7 +1054,7 @@ def main():
             dl_config(config_dir)
 #html_parse(r"Y:\Users\Kyle\Documents\Workspace\WallScraper\imgsrc.html", "tag_match")
 #dl_favorites('')
-#dl_config(r'.')
+dl_config(r'.')
 #evaluate_js("","")  
 
 ##uncomment to run the main method from the console    
