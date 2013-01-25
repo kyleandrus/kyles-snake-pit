@@ -18,6 +18,11 @@ import cookielib
 import ConfigParser
 import shutil
 try:
+    from ghost import Ghost
+except:
+    print "You need to install PySide as well as Ghost.py. Check your dependencies folder to install these"
+    sys.exit()
+try:
     from bs4 import BeautifulSoup
 except:
     print "You need to install BeautifulSoup.\nGo here to download it\nhttp://www.crummy.com/software/BeautifulSoup/bs4/download/"
@@ -44,6 +49,11 @@ if cj is not None:
         #This installs the cookie Jar into the opener for fetching URLs
         opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
         urllib2.install_opener(opener)
+        
+    
+    
+
+    
 
 #Global dictionary used to store the name of a wallpaper file
 #as well as the url of that file. Global so that it can be accessed
@@ -55,9 +65,24 @@ purity_bits = ('001', '011', '111')
 toplist_dict = {"0": "AllTime", "3m": '3Months', '2m':'2Months', '1m':'1Month', '2w':'2Weeks', '1w':'1Week', '3d':'3Days', '1d':'1Day'}
 yes_list = {'yes', 'y', 'Y', 'Yes', 'YES', 'YEs', 'yeS','yES'}
 
+def evaluate_js(js_file, code):
+    if js_file == "":
+        js_file = os.path.abspath('function_b.html')
+    else:
+        js_file = os.path.abspath(js_file)
+    #Coded url useful for testing whether this function works properly or not
+    #code = 'aHR0cDovL25zMjIzNTA2Lm92aC5uZXQvaGlnaC1yZXNvbHV0aW9uLzcwOGNjNGUyNjlmYTU1ZDZiNGYzZjE2NGIwMjRhMjc4L3dhbGxwYXBlci0xNTY4ODYuanBn'
+    ghost = Ghost()
+    ghost.open(js_file)
+    output = ghost.evaluate('B("'+ code + '")')
+    img_src = output[0]
+    return str(img_src)
+
 def html_parse(html_file, type_of_parse, login_vals = None):
     '''this method parses an html file and pulls out the data that is needed based on the type of parsing requested'''
-   
+    #####IDEA!!!! Within this function the htmlfile is available for parsing. Call
+    #####Ghost.py from within this function and compute the javascript to find the src url
+    
     
     #Dictionary used to store the contents of the parsing that will take place
     src_dict = {}
@@ -98,15 +123,60 @@ def html_parse(html_file, type_of_parse, login_vals = None):
             wall_links.append(link.get('href'))
         return wall_links
     
+    
+####Original code for parsing image sources!!!    
+#    #Use this code to match img sources to the img link
+#    if type_of_parse == 'match_imgs_src':
+#        #Opening an html_file for parsing
+#        soup = BeautifulSoup(open(html_file))
+#        img_src = ''
+#        purity_link = []
+#        for link in soup.find_all('img', src=re.compile(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)')):
+#            img_src = link.get('src')
+#            img_name = re.search('(wallpaper-*\d+\S+\w+)', img_src)
+#        for link in soup.find_all('li', class_=re.compile(r'[c|l]')):
+#            purity_link.append(str(link))
+#        for purity in purity_link:
+#            purity_match = re.search(r'class="[c|l]\sselected\s(\w+)', purity)
+#            if purity_match:
+#                purity_link = purity_match.group(1)
+#        return img_src, img_name.group(), purity_link
     #Use this code to match img sources to the img link
+    #New code for attempting to parse image files using the Ghost.py javascript library
     if type_of_parse == 'match_imgs_src':
+        
         #Opening an html_file for parsing
         soup = BeautifulSoup(open(html_file))
         img_src = ''
         purity_link = []
-        for link in soup.find_all('img', src=re.compile(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)')):
-            img_src = link.get('src')
-            img_name = re.search('(wallpaper-*\d+\S+\w+)', img_src)
+        
+        #Parse the html document for script elements with matching javascript tag
+        #for src in soup.find_all('script', type="text/javascript"):
+        for src in soup.find('script', type="text/javascript"):
+            
+            #Uncomment to print the entire script string
+            #print src
+            
+            #Cast javascript tag to string so i can search it
+            src = str(src)
+            
+            ############################################
+            #Currently this regular expression is failing in certain cases, need to tighten it up
+            #Regular expression used to separate the encoded url out from the javascript string
+            #img_src = re.search(("[B]\S\S(\w+)\S"), src)
+            img_src = re.search(("B\W\W(\w+)\W\W"), src)
+            #############################################
+            
+            #Uncomment to print the encoded url
+            #print img_src.group(1)
+            
+            #Put the encoded url through the javascript evaluater to decode the url string
+            img_src = evaluate_js("", img_src.group(1))
+            
+            #Uncomment to print the decoded url
+            #print img_src
+            img_name = re.search('(wallpaper-\d+\S+\w+)', img_src)
+            
         for link in soup.find_all('li', class_=re.compile(r'[c|l]')):
             purity_link.append(str(link))
         for purity in purity_link:
@@ -193,8 +263,7 @@ def html_parse(html_file, type_of_parse, login_vals = None):
             tag = re.search(r'tag:\d+', link.get('href'))
             if link.contents[1] not in file_tags:
                 file_tags[link.contents[1]] = tag.group()
-        return file_tags
-        
+        return file_tags      
 def read_config(config_dir):
     '''Reads from a config file and returns the contents of the file as a searchquery and uservars dictionary'''
     #instantiate c as a configparser class
@@ -263,7 +332,6 @@ def write_config(config_dir, search_contents, user_contents):
     c.write(FILE)
     FILE.close()   
     print "Config file updated"
-
 def dir_check(directory):
     '''This method checks whether a directory exists or not, if it doesn't, it creates it for you'''
     
@@ -701,7 +769,6 @@ def dl_favorites(dest_dir = ''):
     #call to actually begin downloads of the favorites
     search_contents['thpp'] = html_parse(html_file_loc, 'user_settings', login_vals)
     download_walls(dest_dir, '&', dl_url, int(search_contents['start_range']) , int(search_contents['max_range']), dl_to_diff_folders, int(search_contents['thpp']))
-
 def dl_config(config_dir):
     '''This method allows you to kick off a query without going through any user prompts
     by simply feeding it a configuration file location and telling it to go.
@@ -952,7 +1019,7 @@ def dl_config(config_dir):
         #Grabbing thpp setting from the server, you can't set it manually it I force it here
         login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
         search_query['thpp'] = html_parse('', 'user_settings', login_vals)
-        download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'], int(search_query['thpp']))
+        download_walls(dest_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
 def logout():
     '''This sub-method when invoked will clear all cookies
         stored by this method and effectively log the user out.
@@ -993,7 +1060,10 @@ def main():
 #html_parse(r"Y:\Users\Kyle\Documents\Workspace\WallScraper\imgsrc.html", "tag_match")
 #dl_favorites('')
 #dl_config(r'.')
-##uncomment to run the main method from the console        
+#evaluate_js("","")  
+
+##uncomment to run the main method from the console    
+
 if __name__ == "__main__":
     '''If the scripts initiates itself, run the main method
     this prevent the main from being called if this module is 
