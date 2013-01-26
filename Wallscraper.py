@@ -17,6 +17,7 @@ import urllib2
 import cookielib
 import ConfigParser
 import shutil
+import operator
 try:
     from ghost import Ghost
 except:
@@ -28,7 +29,7 @@ except:
     print "You need to install BeautifulSoup.\nGo here to download it\nhttp://www.crummy.com/software/BeautifulSoup/bs4/download/"
     sys.exit()
     
-import operator
+
 
 #Installing the CookieJar - This will make the urlopener bound to the CookieJar.
 #This way, any urls that are opened will handle cookies appropriately 
@@ -1054,7 +1055,7 @@ def main():
             dl_config(config_dir)
 #html_parse(r"Y:\Users\Kyle\Documents\Workspace\WallScraper\imgsrc.html", "tag_match")
 #dl_favorites('')
-dl_config(r'.')
+#dl_config(r'.')
 #evaluate_js("","")  
 
 ##uncomment to run the main method from the console    
