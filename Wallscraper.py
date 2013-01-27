@@ -18,6 +18,7 @@ import cookielib
 import ConfigParser
 import shutil
 import operator
+import unicodedata
 try:
     from ghost import Ghost
 except:
@@ -156,7 +157,7 @@ def html_parse(html_file, type_of_parse, login_vals = None):
         for src in soup.find('script', type="text/javascript"):
             
             #Uncomment to print the entire script string
-            #print src
+            #print "src\n", src
             
             #Cast javascript tag to string so i can search it
             src = str(src)
@@ -165,17 +166,20 @@ def html_parse(html_file, type_of_parse, login_vals = None):
             #Currently this regular expression is failing in certain cases, need to tighten it up
             #Regular expression used to separate the encoded url out from the javascript string
             #img_src = re.search(("[B]\S\S(\w+)\S"), src)
-            img_src = re.search((r"B\W\W(\w+[(=+/)]*)\W\W"), src)
+            #img_src = re.search((r"B\W\W(\w+[(=+/)]*[(=+/)]*[(=+/)]*)\W\W"), src)
+            img_src = re.search((r"B[(]['](\w+[(=+/)]*)['][)]"), src)
             #############################################
             
             #Uncomment to print the encoded url
-            #print img_src.group(1)
+            #print "img_src.group(1)\n", img_src.group(1)
+#            print unicodedata.normalize('NFKD', img_src.group(1)).encode('ascii', 'ignore')
+#            print img_src.group(1)
             
             #Put the encoded url through the javascript evaluater to decode the url string
             img_src = evaluate_js("", img_src.group(1))
             
             #Uncomment to print the decoded url
-            #print img_src
+            #print "img_src\n", img_src
             img_name = re.search('(wallpaper-*\d+\S+\w+)', img_src)
             
         for link in soup.find_all('li', class_=re.compile(r'[c|l]')):
