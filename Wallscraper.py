@@ -478,7 +478,7 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                     os.unlink(temp_file_loc)
                 else:
                     print 'Error: No img_src\'s found. Make sure you logged in.'
-            except urllib2.URLError as detail:
+            except Exception as detail:
                 print "%s error encounted\nWaiting to try again" %(detail)
                 sleep(60)
                 continue
