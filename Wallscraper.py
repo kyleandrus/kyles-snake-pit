@@ -1070,7 +1070,7 @@ def main():
             dl_config(config_dir)
 #html_parse(r"Y:\Users\Kyle\Documents\Workspace\WallScraper\imgsrc.html", "tag_match")
 #dl_favorites('')
-dl_config(r'.')
+#dl_config(r'.')
 #evaluate_js("","")  
 
 ##uncomment to run the main method from the console    
