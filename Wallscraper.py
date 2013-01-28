@@ -72,10 +72,11 @@ def evaluate_js(js_file, code):
         js_file = os.path.abspath('function_b.html')
     else:
         js_file = os.path.abspath(js_file)
+        
     #Coded url useful for testing whether this function works properly or not
     #code = 'aHR0cDovL25zMjIzNTA2Lm92aC5uZXQvaGlnaC1yZXNvbHV0aW9uLzcwOGNjNGUyNjlmYTU1ZDZiNGYzZjE2NGIwMjRhMjc4L3dhbGxwYXBlci0xNTY4ODYuanBn'
     ghost = Ghost()
-    ghost.open(js_file)
+    ghost.open('file:///' + js_file)
     output = ghost.evaluate('B("'+ code + '")')
     img_src = output[0]
     return str(img_src)
@@ -160,7 +161,10 @@ def html_parse(html_file, type_of_parse, login_vals = None):
             #print "src\n", src
             
             #Cast javascript tag to string so i can search it
-            src = str(src)
+            #src = str(src)
+            #Remove the unicode data from the source script text to make it easier to handle for python
+            src = unicodedata.normalize('NFKD', src).encode('ascii','ignore')
+            #print src
             
             ############################################
             #Currently this regular expression is failing in certain cases, need to tighten it up
@@ -480,7 +484,7 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                     print 'Error: No img_src\'s found. Make sure you logged in.'
             except Exception as detail:
                 print "%s error encounted\nWaiting to try again" %(detail)
-                sleep(60)
+                sleep(15)
                 continue
             break
         
