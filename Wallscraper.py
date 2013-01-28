@@ -444,6 +444,8 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     
     #For each img url, find the source url of that img in it's own html file
     for match in matchs:
+        
+        sleep_count = 20
     
         #while loop used stop matching once the max is reached
         while True and start_range < max_range:
@@ -484,7 +486,12 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                     print 'Error: No img_src\'s found. Make sure you logged in.'
             except Exception as detail:
                 print "%s error encounted\nWaiting to try again" %(detail)
-                sleep(15)
+                print "retry attempt %s/%s" %(sleep_count, 120/sleep_count)
+                sleep(20)
+                sleep_count += 20
+                if sleep_count >= 60:
+                    print "There's a problem with matching this URL, skipping wallpaper"
+                    break
                 continue
             break
         
@@ -1063,7 +1070,7 @@ def main():
             dl_config(config_dir)
 #html_parse(r"Y:\Users\Kyle\Documents\Workspace\WallScraper\imgsrc.html", "tag_match")
 #dl_favorites('')
-#dl_config(r'.')
+dl_config(r'.')
 #evaluate_js("","")  
 
 ##uncomment to run the main method from the console    
