@@ -29,6 +29,8 @@ try:
 except:
     print "You need to install BeautifulSoup.\nGo here to download it\nhttp://www.crummy.com/software/BeautifulSoup/bs4/download/"
     sys.exit()
+
+
     
 
 
@@ -347,11 +349,14 @@ def dir_check(directory):
         os.makedirs(os.path.join(directory))
 def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, max_range = 2000, dl_to_diff_folders = "False", thpp = 32):
     """
-    This method initiates the downloads the html matches urls, and uses a counter and range to limit the downloads
+    This method initiates: downloads, html matches, urls creation, and uses a counter and range to limit the downloads
     """
     #check if the directory exists or not
     dir_check(dest_dir)
     print 'Files being saved to:\n', os.path.abspath(dest_dir) 
+    
+    #Pull the query information from the download config file. Useful for being verbose
+    search_option, user_option= read_config(dest_dir)
     
     #Uses the start number and max number to limit the amount of wallpapers you download
     while start_range <= max_range: 
@@ -382,6 +387,13 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
         #verbose, verification to the user of which page they're on. not needed
         print "We are looking for wallpapers in the url:\n%s\nNumber of concurrent dl's set to %d" %(url, thpp)
         
+        if 'collection' in url:
+            print "The collection you are downloading is: %s\nThe name of the directory is %s" %(search_option['collection_name'], os.path.abspath(dest_dir)) 
+
+        else:
+            #use info from config file to be more specific during the download
+            print "The query for this download is: %s\nThe name of the directory is %s" %(search_option['query'], os.path.abspath(dest_dir)) 
+        
         #Begin matching imgs in the html and pull the start number out of the resultant matches
         start_range = match_imgs(url, dest_dir, encoded_query, start_range, max_range, dl_to_diff_folders, thpp)
         
@@ -395,7 +407,6 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
         
         #set the start range in the config_file to match the current start range, this makes it easier to pickup where you left off
         if dest_dir != ".":
-            search_option, user_option= read_config(dest_dir)
             search_option['start_range']= start_range
             write_config(dest_dir, search_option, user_option)
     
@@ -410,6 +421,11 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     blank_data = urllib.urlencode(blank_vals)
     search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc/search'}
     search_req = urllib2.Request(url, search_query, search_headers)
+    
+    #################
+    #Code for grabbing configuration data
+    search_options, user_options = read_config(dest_dir)
+    ###############################
     
     #Initial html request, in a while loop in case of http errors
     while True:
@@ -462,9 +478,18 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                 #Parsing of the html for the source url, image name, and purity setting. 
                 ####IDEA####Can also parse the tags from the same page and save them for later#####
                 img_match_src, img_name, purity_match = html_parse(temp_file_loc, 'match_imgs_src')
-                #Need to think of some fancy way to take these tags and use them for later!!
-                #img_tags = html_parse(temp_file_loc, 'tag_match')
                 
+                #Need to think of some fancy way to take these tags and use them for later!!
+                ######################################
+                #Test code for adding image files into a database for future reference.
+                #img_tags = html_parse(temp_file_loc, 'tag_match')
+                #Check whether the image exists in the database or not
+                #ws_sql.image_check()
+                #Inserts the entries for the image into the database
+                #ws_sql.insert_entries(img_match_src, img_name, purity_match, img_tags)
+                #print img_match_src, img_name, purity_match, img_tags
+                #sys.exit()
+                ######################################
                 
                 #Purity sorting
                 if img_match_src:
@@ -486,7 +511,7 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                     print 'Error: No img_src\'s found. Make sure you logged in.'
             except Exception as detail:
                 print "%s error encounted\nWaiting to try again" %(detail)
-                print "retry attempt %s/%s" %(sleep_count, 120/sleep_count)
+                print "retry attempt %s/%s" %(sleep_count/20, 3)
                 sleep(20)
                 sleep_count += 20
                 if sleep_count >= 60:
@@ -498,8 +523,19 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     
     #stop process if there are no more matches available
     if start_range >= 0 and len(img_names_dict) == 0: 
-        print 'All wallpapers downloaded or already exist:\n"END OF LINE, TRON"'
-        sys.exit()
+        print 'All wallpapers downloaded or already exist'
+        print 'Would you like to reset the start range in the confiruation file and start the downloads again?[Yes]'
+        #code for allowing a user to reset the download counter and start over, so they don't have to do it manually
+        choice = raw_input()
+        if choice == '' or choice in yes_list:
+            search_options['start_range'] = 0
+            write_config(dest_dir, search_options, user_options)
+            search_options, user_options = read_config(dest_dir)
+            start_range = int(search_options['start_range']) - thpp
+        if choice != '' and choice not in yes_list:
+            print "END OF LINE, TRON"
+            sys.exit()
+            
     else: print len(img_names_dict), " Matches successfully made."
     
     #used for returning the proper number of matches if the number of matches is less than the thumbnails per page
@@ -519,7 +555,6 @@ def get_imgs(img_names_dict, start_range, dest_dir = '', thpp = 32):
     match_count = 0
     success_count = 0
     
-    #The 32 below is because the thpp is set to 32, should make this dynamic
     #logic is such that if the passed in start number is less than 30, it downlaods the correct # of imgs
     if start_range < thpp:
         start_range -=  start_range
@@ -740,10 +775,10 @@ def dl_favorites(dest_dir = ''):
     
     #Prompt for organizing folders by purity
     choices = ['False', 'True']
-    print ('Would you like to organize your images in folders based on purity level?\nOptions: True or False. (default is False)\n') 
+    print ('Would you like to organize your images in folders based on purity level?\nOptions: True or False. (default is True)\n') 
     dl_to_diff_folders = raw_input()
     if dl_to_diff_folders == '':
-        dl_to_diff_folders = 'False'
+        dl_to_diff_folders = 'True'
     del count
     count = 0
     while dl_to_diff_folders not in choices and count < 2:
@@ -775,10 +810,10 @@ def dl_favorites(dest_dir = ''):
         search_contents, user_contents = read_config(dest_dir)
     
     #Updating the config file if one doesn't exists
+    search_contents['thpp'] = html_parse(html_file_loc, 'user_settings', login_vals)
     write_config(dest_dir, search_contents, user_contents )
     
     #call to actually begin downloads of the favorites
-    search_contents['thpp'] = html_parse(html_file_loc, 'user_settings', login_vals)
     download_walls(dest_dir, '&', dl_url, int(search_contents['start_range']) , int(search_contents['max_range']), dl_to_diff_folders, int(search_contents['thpp']))
 def dl_config(config_dir):
     '''This method allows you to kick off a query without going through any user prompts
@@ -801,8 +836,8 @@ def dl_config(config_dir):
     orderby_opt='0'
     thpp='32'
     section= 'wallpapers'
-    username = ''
-    password = ''
+    username = 'testwalls'
+    password = 'p0w3rus3r'
     dest_dir = ''
     query_name = ''
     toplist_time = ''
@@ -817,15 +852,52 @@ def dl_config(config_dir):
     c = ConfigParser.ConfigParser()
     download_url = "http://wallbase.cc/search"
   
-    #Grabbing thpp setting from the server, you can't set it manually it I force it here
     login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
-    search_query['thpp'] = html_parse('', 'user_settings', login_vals)
+
     
+        
+    #Populate a list with the names of files and directories in the dest_dir
+    if os.path.exists(os.path.join(config_dir, 'Custom_Search.ini')):
+        #Code to read the configuration file and set variables to match what's in the config
+        print 'Custom_Search.ini found\nLoading settings from %s' %(os.path.join(config_dir, 'Custom_Search.ini'))
+        FILE = open(os.path.join(config_dir, 'Custom_Search.ini'), "rb")
+        c.readfp(FILE)
+        if c.has_section('User Options'):
+            #print 'User Options'
+            for option in c.options('User Options'):
+                user_vars[option] = c.get('User Options', option)
+                #print "\t", option, '=', c.get('User Options', option)
+        
+
+        #print '#'*40 + '\nQuery file contents\n' + '#' *40
+        if c.has_section('Search Query'):
+            #print 'Search Query'
+            for option in c.options('Search Query'):
+                search_query[option] = c.get('Search Query', option)
+                #print "\t", option, "=", c.get('Search Query', option)
+                
+            #Grabbing thpp setting from the server, you can't set it manually it I force it here
+            login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
+            search_query['thpp'] = html_parse('', 'user_settings', login_vals)
+
+        
+        if (c.get('Search Query', 'nsfw') in purity_bits) and (c.get("User Options", 'password') == ''):
+            #print "NSFW query detected:\nMake sure your username and password is in the ini file, save the changes and press enter"
+            raw_input()
+            wallbase_auth(c.get("User Options", 'username'), c.get("User Options", 'password'))
+        #print '#'*40
+        #Return the variables set from the config file to the dl_search method
+        FILE.close() 
+        
     #If a Custom_Search.ini file doesn't exist in the given path, create one   
     if not os.path.exists(os.path.join(config_dir, 'Custom_Search.ini')):
         print 'No Custom_Search.ini file found, creating new default .ini'
         #Make sure the directory exists that we'll be saving the ini file to
         dir_check(config_dir)
+        
+        #Grabbing thpp setting from the server, you can't set it manually it I force it here
+        search_query['thpp'] = html_parse('', 'user_settings', login_vals)
+        
         c.add_section("Search Query")
         for each in search_query:
             #print each, search_query[each], 
@@ -839,33 +911,6 @@ def dl_config(config_dir):
         print "Config file stored at:\n", os.path.abspath(config_dir), '\n\n' + '#'*80 + '\nEdit the Custom_Search.ini file and press enter to begin your downloads\n' + '#'*80
         FILE.close()  
         raw_input()
-        
-    #Populate a list with the names of files and directories in the dest_dir
-    if os.path.exists(os.path.join(config_dir, 'Custom_Search.ini')):
-        #Code to read the configuration file and set variables to match what's in the config
-        print 'Custom_Search.ini found\nLoading settings from %s' %(os.path.join(config_dir, 'Custom_Search.ini'))
-        FILE = open(os.path.join(config_dir, 'Custom_Search.ini'), "rb")
-        c.readfp(FILE)
-        #print '#'*40 + '\nQuery file contents\n' + '#' *40
-        if c.has_section('Search Query'):
-            #print 'Search Query'
-            for option in c.options('Search Query'):
-                search_query[option] = c.get('Search Query', option)
-                #print "\t", option, "=", c.get('Search Query', option)
-            #Grabbing thpp setting from the server, you can't set it manually it I force it here
-            search_query['thpp'] = html_parse('', 'user_setting', login_vals)
-        if c.has_section('User Options'):
-            #print 'User Options'
-            for option in c.options('User Options'):
-                user_vars[option] = c.get('User Options', option)
-                #print "\t", option, '=', c.get('User Options', option)
-        if (c.get('Search Query', 'nsfw') in purity_bits) and (c.get("User Options", 'password') == ''):
-            #print "NSFW query detected:\nMake sure your username and password is in the ini file, save the changes and press enter"
-            raw_input()
-            wallbase_auth(c.get("User Options", 'username'), c.get("User Options", 'password'))
-        #print '#'*40
-        #Return the variables set from the config file to the dl_search method
-        FILE.close() 
         
     
    
@@ -1068,8 +1113,7 @@ def main():
         except IndexError:
             print 'Using default directory of', os.path.abspath(config_dir)
             dl_config(config_dir)
-#html_parse(r"Y:\Users\Kyle\Documents\Workspace\WallScraper\imgsrc.html", "tag_match")
-#dl_favorites('')
+#dl_favorites(r'Z:\internets\wallbase\favorites')
 #dl_config(r'.')
 #evaluate_js("","")  
 
