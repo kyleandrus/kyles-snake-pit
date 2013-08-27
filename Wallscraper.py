@@ -19,6 +19,7 @@ import ConfigParser
 import shutil
 import operator
 import unicodedata
+import ws_sql
 try:
     from ghost import Ghost
 except:
@@ -29,10 +30,6 @@ try:
 except:
     print "You need to install BeautifulSoup.\nGo here to download it\nhttp://www.crummy.com/software/BeautifulSoup/bs4/download/"
     sys.exit()
-
-
-    
-
 
 #Installing the CookieJar - This will make the urlopener bound to the CookieJar.
 #This way, any urls that are opened will handle cookies appropriately 
@@ -45,19 +42,12 @@ cj = cookielib.LWPCookieJar()
 cj.save(COOKIEFILE)
 if cj is not None:
     if os.path.isfile(COOKIEFILE):
-        
         #If there is already a cookoie file, load from it
         cj.load(COOKIEFILE)
     if cookielib is not None:
-        
         #This installs the cookie Jar into the opener for fetching URLs
         opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
         urllib2.install_opener(opener)
-        
-    
-    
-
-    
 
 #Global dictionary used to store the name of a wallpaper file
 #as well as the url of that file. Global so that it can be accessed
@@ -84,11 +74,7 @@ def evaluate_js(js_file, code):
     return str(img_src)
 
 def html_parse(html_file, type_of_parse, login_vals = None):
-    '''this method parses an html file and pulls out the data that is needed based on the type of parsing requested'''
-    #####IDEA!!!! Within this function the htmlfile is available for parsing. Call
-    #####Ghost.py from within this function and compute the javascript to find the src url
-    
-    
+    '''this method parses an html file and pulls out the data that is needed based on the type of parsing requested'''    
     #Dictionary used to store the contents of the parsing that will take place
     src_dict = {}
     
@@ -100,7 +86,9 @@ def html_parse(html_file, type_of_parse, login_vals = None):
         for link in soup.find_all('a', href=re.compile('wallbase.cc/user/collection/\d+')):
             coll_url = link.get('href')
             title_string = link.contents[3].contents
-            src_dict[str(title_string)] = [count, str(coll_url)]
+            #Code for finding number of walls in the collection
+            num_count = re.search(r'class="numcount"\W(\d+)\W', str(link.contents[1].contents))
+            src_dict[str(title_string)] = [count, str(coll_url), num_count.group(1)]
             count +=1
         sorted_dict = sorted(src_dict.iteritems(), key=operator.itemgetter(1))
         return sorted_dict
@@ -128,24 +116,6 @@ def html_parse(html_file, type_of_parse, login_vals = None):
             wall_links.append(link.get('href'))
         return wall_links
     
-    
-####Original code for parsing image sources!!!    
-#    #Use this code to match img sources to the img link
-#    if type_of_parse == 'match_imgs_src':
-#        #Opening an html_file for parsing
-#        soup = BeautifulSoup(open(html_file))
-#        img_src = ''
-#        purity_link = []
-#        for link in soup.find_all('img', src=re.compile(r'http://[^www]\S+(wallpaper-*\d+\S+\w+)')):
-#            img_src = link.get('src')
-#            img_name = re.search('(wallpaper-*\d+\S+\w+)', img_src)
-#        for link in soup.find_all('li', class_=re.compile(r'[c|l]')):
-#            purity_link.append(str(link))
-#        for purity in purity_link:
-#            purity_match = re.search(r'class="[c|l]\sselected\s(\w+)', purity)
-#            if purity_match:
-#                purity_link = purity_match.group(1)
-#        return img_src, img_name.group(), purity_link
     #Use this code to match img sources to the img link
     #New code for attempting to parse image files using the Ghost.py javascript library
     if type_of_parse == 'match_imgs_src':
@@ -168,18 +138,13 @@ def html_parse(html_file, type_of_parse, login_vals = None):
             src = unicodedata.normalize('NFKD', src).encode('ascii','ignore')
             #print src
             
-            ############################################
-            #Currently this regular expression is failing in certain cases, need to tighten it up
             #Regular expression used to separate the encoded url out from the javascript string
-            #img_src = re.search(("[B]\S\S(\w+)\S"), src)
-            #img_src = re.search((r"B\W\W(\w+[(=+/)]*[(=+/)]*[(=+/)]*)\W\W"), src)
             img_src = re.search((r"B[(]['](\w+[(=+/)]*)['][)]"), src)
-            #############################################
             
             #Uncomment to print the encoded url
             #print "img_src.group(1)\n", img_src.group(1)
-#            print unicodedata.normalize('NFKD', img_src.group(1)).encode('ascii', 'ignore')
-#            print img_src.group(1)
+            #print unicodedata.normalize('NFKD', img_src.group(1)).encode('ascii', 'ignore')
+            #print img_src.group(1)
             
             #Put the encoded url through the javascript evaluater to decode the url string
             img_src = evaluate_js("", img_src.group(1))
@@ -196,8 +161,6 @@ def html_parse(html_file, type_of_parse, login_vals = None):
                 purity_link = purity_match.group(1)
         return img_src, img_name.group(), purity_link
     
-    
-
     #Use this code to parse out the active number of walls from the page
     if type_of_parse == 'active_walls':
         #Opening an html_file for parsing
@@ -206,11 +169,8 @@ def html_parse(html_file, type_of_parse, login_vals = None):
         num_of_walls = ""
         for link in soup.find_all('a', class_=("walls-link a active")): 
             active_walls = str(link.contents[0])
-            regex_walls = re.search(r'(\d+),*(\d*),*(\d*)', active_walls)
-            ###########################
             #regex that finds the number of search results, up to a billion
             active_walls = re.search(r'a\sactive"><span>(\d+),*(\d*),*(\d*)', active_walls)
-            #return regex_walls.group()
         #Will only reach this point if the first for loop doesn't return any values for active walls.
         if True:
             #attempts to set the number of wallpapers to the regex results
@@ -269,7 +229,8 @@ def html_parse(html_file, type_of_parse, login_vals = None):
             tag = re.search(r'tag:\d+', link.get('href'))
             if link.contents[1] not in file_tags:
                 file_tags[link.contents[1]] = tag.group()
-        return file_tags      
+        return file_tags
+          
 def read_config(config_dir):
     '''Reads from a config file and returns the contents of the file as a searchquery and uservars dictionary'''
     #instantiate c as a configparser class
@@ -290,7 +251,6 @@ def read_config(config_dir):
     return search_query, user_vars
 def write_config(config_dir, search_contents, user_contents):
     '''Takes as arugments different sets of options, and writes those options to a config file'''
-    ################################################################################################################
     #Read in the contents of the file to the search_query and user_vars, then change what's been passed in further down
     search_query={}
     user_vars = {}
@@ -422,19 +382,22 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc/search'}
     search_req = urllib2.Request(url, search_query, search_headers)
     
-    #################
     #Code for grabbing configuration data
     search_options, user_options = read_config(dest_dir)
-    ###############################
     
     #Initial html request, in a while loop in case of http errors
     while True:
         try:
             search_url = urllib2.urlopen(search_req)
         except urllib2.HTTPError as detail:
-            print "%s error encountered\nWaiting to try again" %(detail)
-            sleep(30)
-            continue
+            print detail
+            if '404' in str(detail):
+                print '404 encountered, deploying zerglings'
+                continue
+            else:
+                print "%s error encountered\nWaiting to try again" %(detail)
+                sleep(30)
+                continue
         break
 
     #Populate an object with the source html
@@ -462,7 +425,6 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     for match in matchs:
         
         sleep_count = 20
-    
         #while loop used stop matching once the max is reached
         while True and start_range < max_range:
         
@@ -475,21 +437,9 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                 img_src_html = img_src_open.read()
                 output_html_to_file(img_src_html, dest_dir)
                 
-                #Parsing of the html for the source url, image name, and purity setting. 
-                ####IDEA####Can also parse the tags from the same page and save them for later#####
+                #Parsing of the html for the source url, image name, and purity setting and tags. 
                 img_match_src, img_name, purity_match = html_parse(temp_file_loc, 'match_imgs_src')
-                
-                #Need to think of some fancy way to take these tags and use them for later!!
-                ######################################
-                #Test code for adding image files into a database for future reference.
-                #img_tags = html_parse(temp_file_loc, 'tag_match')
-                #Check whether the image exists in the database or not
-                #ws_sql.image_check()
-                #Inserts the entries for the image into the database
-                #ws_sql.insert_entries(img_match_src, img_name, purity_match, img_tags)
-                #print img_match_src, img_name, purity_match, img_tags
-                #sys.exit()
-                ######################################
+                img_tags = html_parse(temp_file_loc, 'tag_match')
                 
                 #Purity sorting
                 if img_match_src:
@@ -502,6 +452,11 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
                         print "matched: ",  start_range +1 , '/', max_range
                     else:
                         print "matched: ", start_range +1, '/', num_of_walls
+                        
+                    #Code for checking and updating the database
+                    skip = ws_sql.check_db(img_name, img_match_src, purity_match)
+                    if not skip:
+                        ws_sql.insert_wall_to_db(img_name, img_match_src, purity_match, img_tags)
                     
                     #increment start number that's then returned to the other method for counting
                     start_range +=1
@@ -555,7 +510,7 @@ def get_imgs(img_names_dict, start_range, dest_dir = '', thpp = 32):
     match_count = 0
     success_count = 0
     
-    #logic is such that if the passed in start number is less than 30, it downlaods the correct # of imgs
+    #logic is such that if the passed in start number is less than the thumbnails per page, it downlaods the correct # of imgs
     if start_range < thpp:
         start_range -=  start_range
     elif start_range >= thpp:
@@ -625,7 +580,6 @@ def get_imgs(img_names_dict, start_range, dest_dir = '', thpp = 32):
     img_names_dict.clear()
     return success_count
 def output_html_to_file(url_html, dest_dir = '.'):
-    
     #This code will output the html of the search page, needs fed a req.open()
     dir_check(dest_dir)
     filename = 'deleteme.html'
@@ -651,9 +605,13 @@ def wallbase_auth(username, password):
         try:
             resp = urllib2.urlopen(req)
         except urllib2.HTTPError as detail:
-            print "%s error encountered\nWaiting to try again\nMake sure your username and password are in the ini file, and restart the query" %(detail)
-            sleep(30)
-            continue
+            if  '404' in str(detail):
+                print '404 blocked, deploying zerglings'
+                continue
+            else:
+                print "%s error encountered\nWaiting to try again\nMake sure your username and password are in the ini file, and restart the query" %(detail)
+                sleep(30)
+                continue
         break
 
     #Save cookie with login info
@@ -696,27 +654,30 @@ def dl_favorites(dest_dir = ''):
     temp_user_html_file = os.path.join(dest_dir, 'deleteme.html')
     output_html_to_file(user_list_html, dest_dir)
     match_user = html_parse(temp_user_html_file, 'match_user')
-    print "\nChoose the number of the user that matches the one you want to download from:"
-    for user in match_user:
-        match_user_name = ''.join(e for e in user[0] if e.isalnum())
-        #Your own url profile is always matched, so ignore it. If it's not longer than that exit
-        if len(match_user) == 1:
-            print "That user could not be found. Check your spelling and try again"
-            sys.exit()
-        if match_user_name !='':
-            print 'User#:', user[1][0], "User:", match_user_name
+    choose_user = True 
+    #If you want to download your own wallpapers, skip the user selection process
+    if user_name in match_user[1][0]:
+        user_num = 1
+        choose_user=False
+    else:
+        print "\nChoose the number of the user that matches the one you want to download from:"
+        for user in match_user:
+            match_user_name = ''.join(e for e in user[0] if e.isalnum())
+            #Your own url profile is always matched, so ignore it. If it's not longer than that exit
+            if len(match_user) == 1:
+                print "That user could not be found. Check your spelling and try again"
+                sys.exit()
+            if match_user_name !='':
+                print 'User#:', user[1][0], "User:", match_user_name
         
-    #code to valide the input of the user
+    #Code to validate the input of the user
     count = 0
-    val_input = True   
-    while val_input:
+    while choose_user:
         try:
             user_num = raw_input() 
             user_num = int(user_num)
             match_user_name = ''.join(e for e in user[0] if e.isalnum())
-            favorites_url = match_user[user_num][1][1]
-            #print 'Valid number found. Moving on...'
-            val_input = False
+            choose_user = False
         except ValueError:
             print "Please type a valid number"
             count +=1
@@ -726,7 +687,7 @@ def dl_favorites(dest_dir = ''):
             else:
                 continue   
             
-    favorites_url = favorites_url + '/favorites'
+    favorites_url = match_user[user_num][1][1] + '/favorites'
     os.unlink(os.path.join(dest_dir, 'deleteme.html'))
     fav_req = urllib2.Request(favorites_url, login_data, http_headers)
     fav_resp = urllib2.urlopen(fav_req)
@@ -739,19 +700,18 @@ def dl_favorites(dest_dir = ''):
         dest_dir = raw_input()
     
     #Call the html_parse method and get the dict with collection urls and names
-    #Returned in Unicode!!! 
     fav_src_dict = html_parse(html_file_loc, 'collection')
     os.unlink(html_file_loc)
 
-    
+    #Display menu with collection name and number of wallpapers for the user to choose from
+    #e.g. 0 Artistic, 100 Walpapers
     temp_coll_list = []
     print 'Please type the number of the favorites folder you would like to download now e.g. 1, 2, 3, etc...\n'
-    
     for collection in fav_src_dict:
-        print collection[1][0], ''.join(e for e in collection[0][3:] if e.isalnum()) 
+        print collection[1][0], ''.join(e for e in collection[0][3:] if e.isalnum()), ", " + collection[1][2] + ' Wallpapers'
         temp_coll_list.append(str(collection[1][0]))
         
-    #code to valide the input of the user
+    #Code to validate the input of the user
     count = 0
     val_input = True   
     while val_input:
@@ -797,7 +757,9 @@ def dl_favorites(dest_dir = ''):
     search_contents['dl_to_diff_folders'] = dl_to_diff_folders
     search_contents['collection_name'] = collection_name
     search_contents['start_range'] = '0'
-    search_contents['max_range'] = '3000'
+    search_contents['max_range'] = '6000'
+    #Set the max range to the range for the collection folder being downloaded
+    search_contents['max_range'] = str(fav_src_dict[collection_number][1][2])
     search_contents['thpp'] = ""
     user_contents ['username'] = user_name
     user_contents['password'] = passw
@@ -811,6 +773,7 @@ def dl_favorites(dest_dir = ''):
     
     #Updating the config file if one doesn't exists
     search_contents['thpp'] = html_parse(html_file_loc, 'user_settings', login_vals)
+    
     write_config(dest_dir, search_contents, user_contents )
     
     #call to actually begin downloads of the favorites
@@ -1084,6 +1047,8 @@ def logout():
   
     cj.clear_session_cookies()
     print 'You have been logged out'
+
+
 def main():
     '''This function is used to call the rest of the methods from the command line'''
         
@@ -1095,7 +1060,6 @@ def main():
         print "\nProper usage:\n\n\t[Wallscraper.py --favorites  'This allows you to download your own favorites collections from wallbase(username and password required!)]\n\n\t[Wallscraper.py --search 'This prompts the user to enter in specific search options and performs a query based on those options]\n\n\t[Wallscraper.py --config (directory where the CustomSearch_ini is located, or where you wish to create one. Leave blank for default e.g. c:\\Wallbase\\)]"; 
     
     #Default values passed to the method when called through a command line argument
-#    fdest_dir = ''
     config_dir = '.'
     if len(args) == 0:
         print "\n\nYou must enter an argument to proceed!"
@@ -1113,11 +1077,6 @@ def main():
         except IndexError:
             print 'Using default directory of', os.path.abspath(config_dir)
             dl_config(config_dir)
-#dl_favorites(r'Z:\internets\wallbase\favorites')
-#dl_config(r'.')
-#evaluate_js("","")  
-
-##uncomment to run the main method from the console    
 
 if __name__ == "__main__":
     '''If the scripts initiates itself, run the main method
