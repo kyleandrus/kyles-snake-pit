@@ -8,6 +8,8 @@ import sys
 import os
 import sqlite3 as lite
 import subprocess
+#Ex sql ideas
+#select Tags.img_name, Tags.tag_name, Images.img_src from Tags join Images where (Images.img_name = Tags.img_name) and Images.img_purity = 'SFW';
 
 
 def create_db():
