@@ -4,7 +4,7 @@ Created on Aug 1, 2012
 @author: kandrus
 The purpose of this script is to allow a user to automatically download
 all wallpapers that match a user specified query, or wallpapers that are 
-contained within their custom favorites collections from the website http://wallbase.cc
+contained within their custom favorites collections from the website http://alpha.wallhaven.cc
 The downloading of favorites, or nsfw images is restricted to registered users.
 '''
 
@@ -61,6 +61,7 @@ toplist_dict = {"0": "AllTime", "3m": '3Months', '2m':'2Months', '1m':'1Month', 
 yes_list = {'yes', 'y', 'Y', 'Yes', 'YES', 'YEs', 'yeS','yES'}
 
 def evaluate_js(js_file, code):
+    '''deprecated'''
     if js_file == "":
         js_file = os.path.abspath('function_b.html')
     else:
@@ -74,17 +75,37 @@ def evaluate_js(js_file, code):
     img_src = output[0]
     return str(img_src)
 
-def html_parse(html_file, type_of_parse, login_vals = None):
-    '''this method parses an html file and pulls out the data that is needed based on the type of parsing requested'''    
+def clean_html(wallpaper_file):
+    '''inputs an ugly html file, and outputs a prettified one'''
+    #Call this after downloading the wallpaper source and saving to a file
+    #Read wallpaper into string for parsing
+    a = open(wallpaper_file).read()
+    
+    #Find all Span class tags in html, plus junk tags for css
+    span_class = re.findall('\<*span class=\"\S+\"\>', a) 
+    #print span_class
+    #Remove span class markers and replace unicode with to fix html
+    for span in span_class:
+        a = a.replace(span,'')
+    a = a.replace('</span>', '')
+    a = a.replace('&lt;', '<')
+    a = a.replace('&gt;', '>')
+    a = a.replace('&amp;', '&')
+        
+    #Turn new html source into beautiful soup for easy parsing
+    return BeautifulSoup(BeautifulSoup(a, 'html.parser').prettify(), 'html.parser')
+
+def html_parse(clean_soup, type_of_parse, login_vals = None):
+    '''this method takes prettified html soup and pulls out the data that is needed based on the type of parsing requested'''    
     #Dictionary used to store the contents of the parsing that will take place
     src_dict = {}
     
     #If I'm parsing a users collections, use the following parsing code
     if type_of_parse == 'collection':
         #Opening an html_file for parsing
-        soup = BeautifulSoup(open(html_file))
+        clean_soup
         count = 0
-        for link in soup.find_all('a', href=re.compile('wallbase.cc/user/collection/\d+')):
+        for link in clean_soup.find_all('a', href=re.compile('wallbase.cc/user/collection/\d+')):
             coll_url = link.get('href')
             title_string = link.contents[3].contents
             #Code for finding number of walls in the collection
@@ -97,9 +118,9 @@ def html_parse(html_file, type_of_parse, login_vals = None):
     #If i'm looking for the name of a user, use this parse
     if type_of_parse == 'match_user':
         #Opening an html_file for parsing
-        soup = BeautifulSoup(open(html_file))
+        clean_soup
         count = 0
-        for link in soup.find_all('a', href=re.compile('wallbase.cc/user/profile/\d+')):
+        for link in clean_soup.find_all('a', href=re.compile('wallbase.cc/user/profile/\d+')):
             if link.contents[1]:
                 user_url = link.get('href')
                 user_name = link.contents[1]
@@ -111,46 +132,40 @@ def html_parse(html_file, type_of_parse, login_vals = None):
     #If I'm building a dictionary of image urls, use this
     if type_of_parse == 'match_imgs':
         #Opening an html_file for parsing
-        soup = BeautifulSoup(open(html_file))
+        clean_soup
         wall_links = []
-        for link in soup.find_all('a', href=re.compile('wallbase.cc/wallpaper/\d+')):
+        for link in clean_soup.find_all('a', href=re.compile('wallbase.cc/wallpaper/\d+')):
             wall_links.append(link.get('href'))
         return wall_links
     
+    #####Updated for Wallhaven##############
+    #new method for getting the src, name, and purity for a source wallpaper file
     #Use this code to match img sources to the img link
-    #New code for attempting to parse image files using the Ghost.py javascript library
+    #########################################
     if type_of_parse == 'match_imgs_src':
-        
-        #Opening an html_file for parsing
-        soup = BeautifulSoup(open(html_file))
-                
-        #Parse the html document for script elements with matching javascript tag
-        #match src and name
+        clean_soup   #Check that the soup is clean
+        img_name = ''
         img_src = ''
-        for src in soup.find_all('div', class_=('content clr')):
-            #Uncomment to print the entire script string
-            #print "src\n", src.contents[1]
-            img_src = re.search('src=\"(\S+)\"\>', str(src.contents[1]))
-            #print img_src.group(1)
-            img_name = re.search('\w+-\d+\.\w+', img_src.group(1))
-            #print img_name.group()
+        for src in clean_soup.find_all('img', href=re.compile('\S+wallhaven\-\d+.\w{,4}')):
+            #print 'image source ' + src.get('href')
+            img_src = src.get('href')
+            s = re.search('.*/wallhaven\-\d+.\w{,4}', img_src)
+            if s: img_name = re.search('\w+\-\d+.\w{,4}', img_src)
+            #print img_name.group(0)
+
+        purity = clean_soup.find_all('input')
+        for p in purity:
+            if p.get('name') == 'purity' and p.get('checked') == 'checked':
+                purity_v = p.get('id').upper()
+            else: purity_v = 'SFW'
         
-        #matching the purity setting
-        purity = ''
-        for link in soup.find_all('a', class_=(re.compile(r'purity'))):
-            if 'active' in link.get('class'): purity = link.get('class')[1]
-        #print purity
-            
-        return img_src.group(1), img_name.group(), purity.upper()
+        return img_src , img_name.group(0), purity_v
     
     #Use this code to parse out the active number of walls from the page
     if type_of_parse == 'active_walls':
         #Opening an html_file for parsing
-        soup = BeautifulSoup(open(html_file))
-        FILE = open(html_file)
-        html_input = FILE.read()
+        clean_soup
         active_walls = re.search(r'results_count\S\s(\d+)', html_input)
-        FILE.close()
         #Cast num_of_walls to int for easier comparisons
         if active_walls:
             if active_walls.group(1).isdigit():       
@@ -170,15 +185,15 @@ def html_parse(html_file, type_of_parse, login_vals = None):
         output_html_to_file(settings_html, '.')
         html_file_loc = ('./deleteme.html')
         soup = BeautifulSoup(open(html_file_loc))
-        for link in soup.find_all('input', id="filter_set_thpp"):
+        for link in clean_soup.find_all('input', id="filter_set_thpp"):
             os.unlink(html_file_loc)
             return link.get('value')
         
     #Need to add parsing for tag matching in the dl_config folder
     if type_of_parse == 'tag_match':
         file_tags = {}
-        soup = BeautifulSoup(open(html_file))
-        for link in soup.find_all('a', href=re.compile(r'wallbase.cc/search\?(tag=\d+)')):
+        clean_soup
+        for link in clean_soup.find_all('a', href=re.compile(r'wallbase.cc/search\?(tag=\d+)')):
             tag = re.search(r'tag=\d+', link.get('href'))
             #print 'contents', link.contents[0], 'title', link.get('title')
             if link.contents[0]:
@@ -189,8 +204,8 @@ def html_parse(html_file, type_of_parse, login_vals = None):
     #parse ref and csrf from login page so i can login
     if type_of_parse == 'login_data':
         ref_list = {}
-        soup = BeautifulSoup(open(html_file))
-        for data in soup.find_all('input', type='hidden'):
+        clean_soup
+        for data in clean_soup.find_all('input', type='hidden'):
             ref_list[data.get('name')] = data.get('value')
         return ref_list
         
@@ -284,8 +299,8 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
     
     
     ################
-    #Need to rewrite this whole section, the new searchurl looks like this. the search queries are easier now too, just append the encoded data to the end of the url and bam, done
-    #http://wallbase.cc/search/index/160search?q=anime&color=&section=wallpapers&q=anime&res_opt=eqeq&res=0x0&order_mode=desc&order=relevance&thpp=32&purity=100&board=213&aspect=0.00
+    #Need to rewrite this whole section for wallhaven, below is an example of the new search url format
+    #http://alpha.wallhaven.cc/search?q=kate%20beckinsale&categories=111&purity=111&resolutions=1280x960&ratios=21x9&sorting=relevance&order=desc
     ################
     #Uses the start number and max number to limit the amount of wallpapers you download
     while start_range <= max_range: 
@@ -309,7 +324,7 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
         elif 'toplist' in url:
                 url = url + 'index/' + str(start_range) + '?section=wallpapers&q=' + '&board=' + search_query['board'] +\
                 '&res_opt=' + search_query['res_opt'] + '&res=' + search_query['res'] + '&aspect=' + search_query['aspect'] +\
-                '&purity=' + search_query['nsfw']+'&thpp=' +str(search_query['thpp']) +'&ts=' +search_query['ts']  
+                '&purity=' + search_query['nsfw']+'&thpp=' +str(search_query['thpp']) +'&ts=' +search_query['toplist_time']  
                 encoded_query = urllib.urlencode(search_query)        #Modify the url to retrieve the current range of wallpapers
                 print 'Downloading from toplist'
         #If a default encoded search_uery, use the default url modifier for wallbase searches
@@ -326,7 +341,7 @@ def download_walls(dest_dir = '.', search_query='', url = '', start_range = 0, m
         #print "We are looking for wallpapers in the url:\n%s\nNumber of concurrent dl's set to %d" %(url, thpp)
         if not 'collection' or 'search' in url:
             #use info from config file to be more specific during the download
-            print "The query for this download is: %s\nThe name of the directory is %s" %(search_option['q'], os.path.abspath(dest_dir)) 
+            print "The query for this download is: %s\nThe name of the directory is %s" %(search_option['query'], os.path.abspath(dest_dir)) 
         
         #Begin matching imgs in the html and pull the start number out of the resultant matches
         start_range = match_imgs(url, dest_dir, encoded_query, start_range, max_range, dl_to_diff_folders, thpp)
@@ -355,8 +370,10 @@ def match_imgs(url, dest_dir, search_query, start_range, max_range, dl_to_diff_f
     search_options, user_options = read_config(dest_dir)
     
     #Search headers and request to generate the thumbnail page
-    search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'Referer': 'wallbase.cc/'}
+    ################Need to update this section for Wallhaven.cc########################
+    search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'http://alpha.wallhaven.cc'}
     search_req = urllib2.Request(url, '', search_headers)
+    search_req = urllib2.Request('http://alpha.wallhaven.cc/search?q=kate%20beckinsale&categories=111&purity=111&sorting=date_added&order=desc', '', search_headers)
     search_url = opener.open(search_req)
     url_html = search_url.read()    #Populate an object with the source html
     #print url_html
@@ -557,21 +574,28 @@ def wallbase_auth(username, password):
     restricted pages on wallbase'''
 
     #Values passed to the cgi interface of the webserver to log the user in
-    login_url = 'http://wallbase.cc/user/login'
-    http_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'http://wallbase.cc//'}   
-    req = urllib2.Request(login_url, '', http_headers)      
-    resp = urllib2.urlopen(req)
-    html = resp.read()
-    output_html_to_file(html, '.')
-    html_file_loc = ('./deleteme.html')
-    ref_list = html_parse(html_file_loc, 'login_data')
+#===============================================================================
+#     login_url = 'http://alpha.wallhaven.cc/'
+#     http_headers =  {'User-agent' : 'Mozilla/5.0 (Windows NT 10.0; WOW64)', 'Referer': 'http://alpha.wallhaven..cc/'}   
+#     req = urllib2.Request(login_url, '', http_headers )     
+#      
+# 
+#     resp = urllib2.urlopen(req)
+#     resp = urllib2.urlopen(login_url)
+#     html = resp.read()
+#     output_html_to_file(html, '.')
+#     html_file_loc = ('./deleteme.html')
+#     ref_list = html_parse(html_file_loc, 'login_data')
+#===============================================================================
     #print ref_list
     
     #Values passed to the cgi interface of the webserver to log the user in
-    login_vals = {'csrf': ref_list['csrf'], 'ref':ref_list['ref'], 'username': username, 'password': password}
-    login_url = 'http://wallbase.cc/user/do_login'
+    #login_vals = {'csrf': ref_list['csrf'], 'ref':ref_list['ref'], 'username': username, 'password': password}
+    login_vals = {'username': username, 'password': password}
+
+    login_url = 'http://alpha.wallhaven.cc/auth/login'
     login_data = urllib.urlencode(login_vals)
-    http_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'http://wallbase.cc/user/login'}   
+    http_headers =  {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'http://alpha.wallhaven.cc'}   
     req = urllib2.Request(login_url, login_data, http_headers)
     resp = opener.open(req)
     login_html = resp.read()
@@ -586,7 +610,7 @@ def wallbase_auth(username, password):
             print 'Login failed for %s\nCheck for csrf/username/password problems' %(username)
     
     #print 'User %s logged in' %(username)
-    return ref_list
+    #return ref_list
   
     
 
@@ -672,7 +696,7 @@ def dl_favorites(dest_dir = ''):
         print  ('\nPlease enter the path you wish to use for your favorites e.g. c:\\favorites\nLeave blank use the current directory of the Python interpreter\n') 
         dest_dir = raw_input()
     
-    #Call the html_parse method and get the dict with collection urls and names
+    #Call the img_parse method and get the dict with collection urls and names
     fav_src_dict = html_parse(html_file_loc, 'collection')
     os.unlink(html_file_loc)
 
@@ -772,21 +796,21 @@ def dl_config(config_dir):
     orderby_opt='0'
     thpp='32'
     section= 'wallpapers'
-    username = 'testwalls'
+    username = 'andrusk'
     password = 'p0w3rus3r'
     dest_dir = ''
     query_name = ''
     toplist_time = ''
     dl_to_diff_folders = 'False'
-    search_query = ({'q': q, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
+    search_query = ({'query': q, 'board': board, 'nsfw': nsfw, 'res': res, 'res_opt': res_opt, 'aspect':aspect, 
                        'orderby':orderby, 'orderby_opt': orderby_opt, 'thpp':thpp, 'section': section, '1': 1,
-                        'start_range' : start_range, 'max_range' : max_range, 'query_name': query_name, 'dl_to_diff_folders' : dl_to_diff_folders, 'ts': toplist_time})
+                        'start_range' : start_range, 'max_range' : max_range, 'query_name': query_name, 'dl_to_diff_folders' : dl_to_diff_folders, 'toplist_time': toplist_time})
     user_vars = ({'destination_directory': dest_dir, 'username': username, 'password': password})
     ###############################################################################################################
 
     #instantiate c as a configparser class
     c = ConfigParser.ConfigParser()
-    download_url = "http://wallbase.cc/search"
+    download_url = "http://alpha.wallhaven.cc/search"
   
     login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
 
@@ -799,22 +823,22 @@ def dl_config(config_dir):
         FILE = open(os.path.join(config_dir, 'Custom_Search.ini'), "rb")
         c.readfp(FILE)
         if c.has_section('User Options'):
-            #print 'User Options'
+            print 'User Options'
             for option in c.options('User Options'):
                 user_vars[option] = c.get('User Options', option)
-                #print "\t", option, '=', c.get('User Options', option)
+                print "\t", option, '=', c.get('User Options', option)
         
 
-        #print '#'*40 + '\nQuery file contents\n' + '#' *40
+        print '#'*40 + '\nQuery file contents\n' + '#' *40
         if c.has_section('Search Query'):
-            #print 'Search Query'
+            print 'Search Query'
             for option in c.options('Search Query'):
                 search_query[option] = c.get('Search Query', option)
-                #print "\t", option, "=", c.get('Search Query', option)
+                print "\t", option, "=", c.get('Search Query', option)
                 
             #Grabbing thpp setting from the server, you can't set it manually it I force it here
             login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
-            #search_query['thpp'] = html_parse('', 'user_settings', login_vals)
+            #search_query['thpp'] = img_parse('', 'user_settings', login_vals)
             search_query['thpp'] = 32
 
 
@@ -834,12 +858,12 @@ def dl_config(config_dir):
         dir_check(config_dir)
         
         #Grabbing thpp setting from the server, you can't set it manually it I force it here
-#        search_query['thpp'] = html_parse('', 'user_settings', login_vals)
+#        search_query['thpp'] = img_parse('', 'user_settings', login_vals)
         search_query['thpp'] = 32
                 
         c.add_section("Search Query")
         for each in search_query:
-            #print each, search_query[each], 
+            print each, search_query[each], 
             c.set("Search Query", each, search_query[each])
         c.add_section('User Options')
         for var in user_vars:
@@ -855,16 +879,17 @@ def dl_config(config_dir):
    
     
     #Code to base the downloads on the BEST OF TOPLIST on wallbase
-    if c.get("Search Query", 'ts') in toplist_dict:
+    print c.get('Search Query', 'toplist_time')
+    if c.get("Search Query", 'toplist_time') in toplist_dict:
         print "BestOf Download found! Ignoring search queries..."
         if config_dir != '.' and user_vars['destination_directory'] == "":
-            toplist_dir = os.path.abspath(os.path.join(config_dir, "BestOf%s" %(toplist_dict[search_query['ts']])))  
+            toplist_dir = os.path.abspath(os.path.join(config_dir, "BestOf%s" %(toplist_dict[search_query['toplist_time']])))  
         elif user_vars['destination_directory'] != "":
-            toplist_dir = os.path.abspath(os.path.join(user_vars['destination_directory'], "BestOf%s" %(toplist_dict[search_query['ts']])))        
+            toplist_dir = os.path.abspath(os.path.join(user_vars['destination_directory'], "BestOf%s" %(toplist_dict[search_query['toplist_time']])))        
         else:
-            toplist_dir = os.path.abspath(os.path.join("BestOf%s" %(toplist_dict[search_query['ts']])))
+            toplist_dir = os.path.abspath(os.path.join("BestOf%s" %(toplist_dict[search_query['toplist_time']])))
         dir_check(toplist_dir)
-        new_config_dir = os.path.join(toplist_dir, ("BestOf%s" %(toplist_dict[search_query['ts']] + '.ini')))
+        new_config_dir = os.path.join(toplist_dir, ("BestOf%s" %(toplist_dict[search_query['toplist_time']] + '.ini')))
         
         #if config file has been read, read from it instead of re-doing the custom_search.
         if os.path.isfile(new_config_dir):
@@ -879,21 +904,21 @@ def dl_config(config_dir):
         write_config(toplist_dir, search_query, user_vars)
         
         #set the download url to toplist and download walls. This url doesn't need an encoded query
-        download_url = 'http://wallbase.cc/toplist/'
+        download_url = 'http://alpha.wallhaven.cc/toplist/'
 #        wallbase_auth(user_vars['username'], user_vars['password'])
         #Grabbing thpp setting from the server, you can't set it manually it I force it here
         login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
-#        search_query['thpp'] = html_parse('', 'user_settings', login_vals)
+#        search_query['thpp'] = img_parse('', 'user_settings', login_vals)
         search_query['thpp'] = 32
 
         download_walls(toplist_dir, search_query, download_url, int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'], int(search_query['thpp']))
     
     #If the search query is based on a tag: query, then the destionation directory will be created using the name of the tag, not the tag number.
-    elif "tag=" in c.get("Search Query", 'q'):
+    elif "tag=" in c.get("Search Query", 'query'):
         #Search headers and query necessary to get the search name of a tag: query
-        search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'wallbase.cc/search'}
+        search_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)', 'referer': 'alpha.wallhaven.cc/search'}
         tag_query = urllib.urlencode(search_query)
-        search_req = urllib2.Request('http://wallbase.cc/search', tag_query, search_headers)
+        search_req = urllib2.Request('http://alpha.wallhaven.cc/search', tag_query, search_headers)
         #Initial html request, in a while loop in case of http errors
         while True:
             try:
@@ -953,15 +978,15 @@ def dl_config(config_dir):
 #        wallbase_auth(user_vars['username'], user_vars['password'])
         #Grabbing thpp setting from the server, you can't set it manually it I force it here
         login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
-        #search_query['thpp'] = html_parse('', 'user_settings', login_vals)
+        #search_query['thpp'] = img_parse('', 'user_settings', login_vals)
         search_query['thpp'] = 32
 
-        download_walls(new_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'], int(search_query['thpp']))
+        download_walls(new_dir, encoded_query, 'http://alpha.wallhaven.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'], int(search_query['thpp']))
     
     #This code creates the directories based on the Query name
-    elif c.get("Search Query", 'q') != '':
+    elif c.get("Search Query", 'query') != '':
         print "Non-blank query found\nCreating custom directory for the query and copying the .ini file.."
-        alnum_name = ''.join(e for e in c.get("Search Query", 'q') if e.isalnum())
+        alnum_name = ''.join(e for e in c.get("Search Query", 'query') if e.isalnum())
         if config_dir != '.' and user_vars['destination_directory'] == "":
             new_dir = os.path.abspath(os.path.join(config_dir, alnum_name))
         elif user_vars['destination_directory'] != "":
@@ -996,15 +1021,15 @@ def dl_config(config_dir):
 
         #Grabbing thpp setting from the server, you can't set it manually it I force it here
         #login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
-#        search_query['thpp'] = html_parse('', 'user_settings', login_vals)
+#        search_query['thpp'] = img_parse('', 'user_settings', login_vals)
         search_query['thpp'] = 32
         
         ###
         #print encoded_query
-        download_walls(new_dir, encoded_query, 'http://wallbase.cc/', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'], int(search_query['thpp']))
+        download_walls(new_dir, encoded_query, 'http://alpha.wallhaven.cc/', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'], int(search_query['thpp']))
 
         ###
-#        download_walls(new_dir, encoded_query, 'http://wallbase.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'], int(search_query['thpp']))
+#        download_walls(new_dir, encoded_query, 'http://alpha.wallhaven.cc/search', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'], int(search_query['thpp']))
 
     #Else, if the search query is blank, it's not a toplist download, and it's not a tag: download
     else:
@@ -1032,9 +1057,9 @@ def dl_config(config_dir):
         #wallbase_auth(user_vars['username'], user_vars['password'])
         #Grabbing thpp setting from the server, you can't set it manually it I force it here
         #login_vals = {'usrname': user_vars['username'], 'pass': user_vars['password'], 'nopass_email': 'TypeInYourEmailAndPressEnter', 'nopass': '0', '1': '1'}
-#        search_query['thpp'] = html_parse('', 'user_settings', login_vals)
+#        search_query['thpp'] = img_parse('', 'user_settings', login_vals)
         search_query['thpp'] = 32
-        download_walls(dest_dir, encoded_query, 'http://wallbase.cc/', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
+        download_walls(dest_dir, encoded_query, 'http://alpha.wallhaven.cc/', int(search_query['start_range']), int(search_query['max_range']), search_query['dl_to_diff_folders'])
 def logout():
     '''This sub-method when invoked will clear all cookies
         stored by this method and effectively log the user out.
