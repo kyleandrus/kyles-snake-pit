@@ -18,144 +18,101 @@ from time import sleep
 import urllib 
 import urllib2
 import ws_sql
-try:
-    from bs4 import BeautifulSoup
-except:
-    print "You need to install BeautifulSoup.\nGo here to download it\nhttp://www.crummy.com/software/BeautifulSoup/bs4/download/"
-    sys.exit()
+from bs4 import BeautifulSoup
+import tempfile
 class WallScraper(object):
     def match_images(self):
-        '''This method is used to parse the thumbnail page, then request each image in the query. Once that's done, img src, purity, tag info etc...
-        is parsed from the img src page and handed off to be downloaded.'''       
-        if self.num_of_walls == 'over 9000!':  #new toplist doesn't list number of results, so just set to user's max range
-            self.num_of_walls = int(tools.user_vars['max_range'])
-    
+        '''This method is takes a list of wallpaper source urls, and builds a 
+        dictionary containing the direct source link purity setting of the wallpapers,
+        and name. Once that's done, the dictionary can be used for retrieval.'''       
         if self.num_of_walls == "":
             print "No wallpapers found, try a different query"
             sys.exit(1)
-        
-        #The number of wallpapers is used to limit the matches as well as determine start and stop ranges in this method
-        print 'Currently processing matches'
-        if int(self.num_of_walls) > int(tools.user_vars['max_range']):
-            print '%s wallpapers found' % self.num_of_walls
-            #print '%s wallpapers found\n%s queued for dl, out of %s' % self.num_of_walls,  tools.user_vars['max_range'] - tools.user_vars['start_range'],  tools.user_vars['max_range']
-        elif (int(tools.user_vars['max_range']) > self.num_of_walls) and (self.num_of_walls - int(tools.user_vars['start_range'])) > 0:
-            print 'Found %d wallpapers\nDownloading %d wallpapers' % (self.num_of_walls, self.num_of_walls - int(tools.user_vars['start_range'])) 
-        
+        print 'Currently processing matches'        
         #For each img url, find the source url of that img in it's own html file
         for match in self.wall_links:
-            #print match
-            sleep_count = 1
-            #while loop used stop matching once the max is reached
-            #while True and self.match_count < int(tools.user_vars['max_range']):
-            try: #and request the img src url, if http error, wait and try again
-                sleep(.15)
-                #request for src html of matched image
-                img_src_req = urllib2.Request(match, headers=self.http_headers)
-                self.html_from_url_request(img_src_req)
-                parse.make_soup(self.html_from_url_request(img_src_req), True)
-                #Parsing of the html for the source url, image name, and purity setting and tags. 
-                #source_soup = parse.make_soup(temp_file_loc, True)
-                img_match_src, img_name, purity_match = parse.find_img_source()
-                #img_tags = parse.find_img_tags(parse.soup)
-                #print img_match_src, img_name, purity_match, img_tags
-                #Sorting of downloads based on image purity e.g. Sketchy, NSFW etc...
-                if img_match_src:
-                    if tools.user_vars['dl_to_diff_folders'] == 'True':
-                        self.img_names_dict[img_name] = img_match_src, purity_match
-                    else:
-                        self.img_names_dict[img_name] = img_match_src
-                    self.match_count +=1
-                    if int(tools.user_vars['max_range']) < self.num_of_walls:
-                        print "matched: ",  self.match_count, '/', self.num_of_walls
-                    else: print "matched: ", self.match_count, '/',  int(tools.user_vars['max_range'])                            
-                    #Code for checking DB for existance and updating DB with image info
-                    #===============================================================
-                    # skip = ws_sql.check_db(img_name, img_match_src, purity_match)
-                    # if not skip:
-                    #     ws_sql.insert_wall_to_db(img_name, img_match_src, purity_match, img_tags)
-                    #===============================================================
-                    tools.user_vars['start_range'] = int(tools.user_vars['start_range']) + 1     #increment start number that's then returned to the other method for counting
-                    os.unlink(self.temp_file_loc)    #delete html after each match to keep directory clean
-                else:
-                    print 'Error: No img_src\'s found. Make sure you logged in.'
-            except Exception as detail:
-                print "%s error encounted\nWaiting to try again" %(detail)
-                print "retry attempt %s/%s" %(sleep_count, 3)
-                sleep(20)
-                sleep_count += 1
-                if sleep_count >= 20:
-                    print "There's a problem with matching this URL, skipping wallpaper"
-                    break
-                continue
-                #break
-        #Stop matching process if there are no more matches available
-        if int(tools.user_vars['start_range']) >= 0 and len(self.img_names_dict) == 0: 
-            print 'All wallpapers downloaded or already exist'
-            print 'Would you like to reset the start range in the confiruation file and start the downloads again?[Yes]'
-            #code for allowing a user to reset the download counter and start over, so they don't have to do it manually
-            choice = raw_input()
-            if choice == '' or choice in self.yes_list:
-                tools.search_query['start_range'] = 0
-                #Now that tools is a class, i shouldn't need to write and read the config to change the value
-                #tools.write_config(dest_dir, tools.search_query, tools.user_vars)
-                #search_options, user_options = tools.load_config(dest_dir)
-                tools.user_vars['start_range'] = int(tools.user_vars['start_range']) - int(self.thpp)
-            if choice != '' and choice not in self.yes_list:
-                print "END OF LINE, TRON"
-                sys.exit()
-                
-        else: print len(self.img_names_dict), " Matches successfully made."
-        
-        #used for returning the proper number of matches if the number of matches is less than the thumbnails per page
-        #=======================================================================
-        # if len(self.img_names_dict) < int(self.thpp):
-        #     return (int(tools.user_vars['start_range']) + (int(self.thpp) - len(self.img_names_dict)))
-        # else:
-        #     #start number returned that's used for incrementing elsewhere
-        #     return int(tools.user_vars['start_range'])
-        #=======================================================================
+            if (self.match_count < self.num_of_walls )and (self.match_count < int(tools.user_vars['max_range'])): #trying to limit matches to max range or number of walls, so I don't run over
+                #print match
+                sleep_count = 1
+                try: #and request the img src url, if http error, wait and try again
+                    sleep(.15)
+                    #request for src html of matched image
+                    img_src_req = urllib2.Request(match, headers=self.http_headers)
+                    self.html_from_url_request(img_src_req)
+                    parse.make_soup(self.html_from_url_request(img_src_req), True)
+                    #Parsing of the html for the source url, image name, and purity setting and tags. 
+                    img_match_src, img_name, purity_match = parse.find_img_source()
+                    #img_tags = parse.find_img_tags(parse.soup)
+                    #print img_match_src, img_name, purity_match, img_tags
+                    #Sorting of downloads based on image purity e.g. Sketchy, NSFW etc...
+                    if img_match_src:
+                        if tools.user_vars['dl_to_diff_folders'] == 'True':
+                            self.img_names_dict[img_name] = img_match_src, purity_match
+                        else:
+                            self.img_names_dict[img_name] = img_match_src
+                        self.match_count +=1
+                        if int(tools.user_vars['max_range']) <= self.num_of_walls:
+                            #print 'More walls available than max_range allows, limiting to 2000'
+                            print "matched: ", self.match_count, '/',  int(tools.user_vars['max_range'])
+                        elif self.num_of_walls <= int(tools.user_vars['max_range']):
+                            print "matched: ",  self.match_count, '/', self.num_of_walls
+                        #Code for checking DB for existance and updating DB with image info
+                        #===============================================================
+                        # skip = ws_sql.check_db(img_name, img_match_src, purity_match)
+                        # if not skip:
+                        #     ws_sql.insert_wall_to_db(img_name, img_match_src, purity_match, img_tags)
+                        #===============================================================
+                        #increment start number, for picking up where you left off later
+                        #tools.user_vars['start_range'] += 1#int(tools.user_vars['start_range']) + 1     #increment start number, for picking up where you left off later
+                        self.start_range +=1
+                        os.unlink(self.temp_file_loc)    #delete html after each match to keep directory clean
+                    else: print 'Error: No img_src\'s found. Make sure you logged in.'
+                except Exception as detail:
+                    print "%s error encounted\nWaiting to try again" %(detail)
+                    print "retry attempt %s/%s" %(sleep_count, 3)
+                    sleep(20)
+                    sleep_count += 1
+                    if sleep_count >= 20:
+                        print "There's a problem with matching this URL, skipping wallpaper"
+                        break
+                    continue
+        print len(self.img_names_dict), " Matches successfully made."
     def retrieve_images(self):
         """This method is used to retrieve images from a dictionary of wallpapers and urls,
         saves them to your hard drive, and if they already exist skips the download."""
         #If the chosen directory doesn't exist, create it
         dest_dir = tools.downloads_directory
         tools.directory_checker(dest_dir)
-
-        #logic is such that if the passed in start number is less than the thumbnails per page, it downlaods the correct # of imgs
-        #=======================================================================
-        # if int(tools.user_vars['start_range']) < int(tools.user_vars['thpp']):
-        #     tools.user_vars['start_range'] -= tools.user_vars['start_range']
-        # elif int(tools.user_vars['start_range']) >= int(tools.user_vars['start_range']):
-        #     tools.user_vars['start_range'] -= tools.user_vars['thpp']
-        #=======================================================================
         
+        #Setting the file name and directory in case of purity download filtering
+        self.clean_query_name = tools.search_query['query'].replace(' ', '_').replace('"', '').strip().title()
+        query_dir_name = os.path.join(dest_dir, self.clean_query_name)
+        self.query_config_file = os.path.abspath(os.path.join(query_dir_name, self.clean_query_name+'.ini'))
+        print self.query_config_file
         #Iterate through the loop and download images in the dictionary
         for img in self.img_names_dict:
 
-            #Setting the file name and directory in case of purity download filtering
-            query_dir_name = str(tools.search_query['query'])
-            query_dir_name = query_dir_name.replace(' ', '_').strip().title()
-            query_dir_name = os.path.join(dest_dir, query_dir_name)
+            
             if self.img_names_dict[img][1] in self.purity_list:
                 purity_dir = os.path.join(query_dir_name,  self.img_names_dict[img][1])
             else: purity_dir = os.path.join(query_dir_name)
             purity_file = os.path.join(purity_dir, img)
-            tools.directory_checker(purity_dir)            
-
+            tools.directory_checker(purity_dir)                            
+            
             if self.img_names_dict[img][1] in self.purity_list:
+                verbose_output = ((self.page_number -1 )*int(self.thpp)+ self.img_names_dict.keys().index(img)%int(self.thpp) +1, img, self.img_names_dict[img][1])
                 #else if image exists in purity directory, don't move it
                 if os.path.isfile(purity_file):
                     self.already_exist +=1
-                    print "File %d, %s exists in %s folder, not moving" % ((self.img_names_dict.keys().index(img)+1) *(self.match_count/int(self.thpp)) , img, self.img_names_dict[img][1])
+                    print "File %d, %s exists in %s folder, not moving" % verbose_output
                 #If image exists is in main directory, and dl to diff true, move image to purity folder
-                elif os.path.isfile(os.path.join(dest_dir, img)):
+                elif os.path.isfile(os.path.join(query_dir_name, img)):
                     self.already_exist +=1
-                    print "File %d, %s exists, moving to %s folder" % ((self.img_names_dict.keys().index(img)+1) *(self.match_count/int(self.thpp)), img, self.img_names_dict[img][1])
-                    shutil.move(os.path.join(dest_dir, img), purity_dir)
+                    print "File %d, %s exists, moving to %s folder" % verbose_output
+                    shutil.move(os.path.join(query_dir_name, img), purity_dir)
                 #else if image doesn't exist in purity direcotry, download that shit
                 elif not os.path.isfile(purity_file):
-                    print 'File %d, %s downloading to %s folder' %((self.img_names_dict.keys().index(img)+1) *(self.match_count/int(self.thpp)), img, self.img_names_dict[img][1])
+                    print 'File %d, %s downloading to %s folder' % verbose_output
                     sleep_count = 0
                     while True:
                         try:
@@ -182,10 +139,10 @@ class WallScraper(object):
             if self.img_names_dict[img][1] not in self.purity_list:
                 if os.path.isfile(os.path.join(dest_dir, img))  :
                     self.already_exist +=1
-                    print 'File %d, %s exists in %s, not moved' % ((self.img_names_dict.keys().index(img)+1) *(self.match_count/int(self.thpp)+1), img, os.path.basename(dest_dir))
+                    print 'File %d, %s exists in %s, not moved' % verbose_output
                 elif not os.path.isfile(os.path.join(dest_dir, img)):
                     self.already_exist +=1
-                    print 'File %d, %s downlaoding to %s folder' % ((self.img_names_dict.keys().index(img)+1) *(self.match_count/int(self.thpp)+1), img, os.path.basename(dest_dir))
+                    print 'File %d, %s downlaoding to %s folder' % verbose_output
                     sleep_count = 0
                     while True:
                         try:
@@ -206,95 +163,9 @@ class WallScraper(object):
                                 break
                             continue
                         break
-            tools.user_vars['start_range'] +=1
-        if self.success_count: print self.success_count, 'successful downloads, %d files already existed' % self.already_exist
+        if self.success_count or self.already_exist: print self.success_count, 'successful downloads, %d files already existed' % self.already_exist
         #clear the dictionary for the next run
         self.img_names_dict.clear()
-    def query_generator(self, dest_dir = '.', search_query='', url = '', start_range = 0, max_range = 2000, dl_to_diff_folders = "False", thpp = 32): #This method is formerly called download_walls
-        """
-        This method initiates: downloads, html matches, urls creation, and uses a counter and range to limit the downloads
-        """
-        #check if the directory exists or not
-        tools.directory_checker( self.destination_directory)
-        print 'Files being saved to:\n', os.path.abspath(self.destination_directory) 
-        
-        #Pull the query information from the download config file. Useful for being verbose
-        search_option, user_option= tools.load_config(self.destination_directory)
-        
-        ##################
-        ################
-        #Need to rewrite this whole section for wallhaven, below is an example of the new search url format
-        #http://alpha.wallhaven.cc/search?q=kate%20beckinsale&categories=111&purity=111&resolutions=1280x960&ratios=21x9&sorting=relevance&order=desc
-        ################
-        #Uses the start number and max number to limit the amount of wallpapers you download
-        while start_range <= max_range: 
-            
-            #Used as a placeholder for the url so we can reset it after the loop
-            temp_url = url
-            
-            #If the query is tagged as a users colleciton query, modify the url to match favorites downloaded    
-            if 'collection' in url:
-                url = url + '/0/' +str(start_range)
-                encoded_query = search_query
-                print "The collection you are downloading is: %s\nThe name of the directory is %s" %(search_option['collection_name'], os.path.abspath(dest_dir)) 
-                
-            #If the query is tagged as a favorites query, modify the url to match favorites downloaded    
-            elif 'favorites' in url:
-                url = url + '/' + str(start_range)
-                encoded_query = search_query
-                print 'Downloading from favorites'
-                
-            #if the toplist is in the url, match this template http://wallbase.cc/toplist/0/12/eqeq/0x0/0/100/32/2d
-            elif 'toplist' in url:
-                    url = url + 'index/' + str(start_range) + '?section=wallpapers&q=' + '&board=' + search_query['board'] +\
-                    '&res_opt=' + search_query['res_opt'] + '&res=' + search_query['res'] + '&aspect=' + search_query['aspect'] +\
-                    '&purity=' + search_query['nsfw']+'&thpp=' +str(search_query['thpp']) +'&ts=' +search_query['toplist_time']  
-                    encoded_query = urllib.urlencode(search_query)        #Modify the url to retrieve the current range of wallpapers
-                    print 'Downloading from toplist'
-            #If a default encoded search_uery, use the default url modifier for wallbase searches
-    #        else:
-    #            url = url + '/' + str(start_range)
-    #            encoded_query = search_query
-            else:
-                ###################
-                #Updating for current wallhaven search sceme
-                #http://alpha.wallhaven.cc/search?q=kate%20beckinsale&categories=111&purity=111&resolutions=1280x960&ratios=21x9&sorting=relevance&order=desc
-                ######################
-                #url = url + 'search' + str(start_range) + '?q=' + search_query
-                print type(search_query)
-                if start_range/32== 0 : start_page = '?page=1' 
-                else: start_page = '?page=%s' % str(start_range)/str(search_query['thpp'])
-                url = url + 'search' + start_page + '&categories' + search_query['board'] + '&purity' + search_query['nsfw'] +'&resolutions' +\
-                search_query['res'] + '&ratios' + search_query['res_opt'] + '&sorting' + search_query['orderby'] +'&order' + search_query['orderby_opt']
-                encoded_query = urllib.urlencode(search_query)
-                print search_query
-                print 'Downloading a search_query'
-                
-            #verbose, verification to the user of which page they're on. not needed
-            #print "We are looking for wallpapers in the url:\n%s\nNumber of concurrent dl's set to %d" %(url, thpp)
-            if not 'collection' or 'search' in url:
-                #use info from config file to be more specific during the download
-                print "The query for this download is: %s\nThe name of the directory is %s" %(search_option['query'], os.path.abspath(dest_dir)) 
-            
-            #Begin matching imgs in the html and pull the start number out of the resultant matches
-            start_range = self.match_images(url, dest_dir, encoded_query, start_range, max_range, dl_to_diff_folders, thpp)
-            
-            #reset the url since the match is completed
-            url = temp_url
-            
-            #Call to method used to actually download the images from the match
-            #Uses dictionary of names:sources
-            print "Deploying ninjas to steal wallpapers"
-            self.retrieve_images(self.img_names_dict, start_range, dest_dir, thpp)
-            
-            #set the start range in the config_file to match the current start range, this makes it easier to pickup where you left off
-            if dest_dir != ".":
-                search_option['start_range']= start_range
-                tools.write_config(dest_dir, search_option, user_option)
-        
-        if start_range >= max_range: #Stop downloads if max range is reached
-            print 'Max range reached, stopping downloads'
-            sys.exit(1)
     def user_login(self, username, password):
         '''Logs the user in and saves the users session in a cookie for use when making web requests
         Also uses custom headers to pass to the web server to allow image downloads. If the user
@@ -336,67 +207,77 @@ class WallScraper(object):
                     'http://alpha.wallhaven.cc/settings/browsing'\
                     %self.thpp
                     return self.thpp
+    def build_query(self):
+        #Adding support for searches first
+        self.page_number = (self.match_count/int(self.thpp)+1)
+        self.query_url = self.wallhaven_search_url + '?&page=' + str(self.page_number) + '&categories=' + tools.search_query['board'] +\
+         '&purity=' + tools.search_query['nsfw'] +'&resolutions=' + tools.search_query['res'] + '&ratios=' +\
+         tools.search_query['res_opt'] + '&sorting=' + tools.search_query['orderby'] +'&order=' +\
+         tools.search_query['orderby_opt'] + '&q=' + tools.search_query['query'].replace(' ', '%20').strip()
+        #print self.query_url
+        print 'Downloading a search_query'
+        return self.query_url
     def new_download_generator(self):
         '''Check the dest directory, if not default, create missing dir
         then start scraping the thumbnail page for image'''
         #Load config using tools class - set search query and user variables
         #to the settings in the file. 
-        tools.search_query, tools.user_vars = tools.load_config(tools.config_file)
-        if tools.search_query['nsfw'][2] == '1' and (tools.user_vars['username'] or tools.user_vars['password'] )== '':
+        tools.search_query, tools.user_vars = tools.load_config(r'C:\Users\kyle\workspace\wall_scraper\Custom_Search.ini')
+        if tools.search_query['nsfw'][2] == '1' and (tools.user_vars['username'] =='' or tools.user_vars['password'] == ''):
             print 'type your username and press enter'
             tools.user_vars['username'] = raw_input()
             print 'type your password and press enter'
             tools.user_vars['password'] = raw_input()
-        #elif tools.search_query['nsfw'][2] != '1' and (tools.user_vars['username'] and tools.user_vars['password']) != '':
-        self.user_login(tools.user_vars['username'], tools.user_vars['password'])
+        elif tools.search_query['nsfw'][2] == '1' and (tools.user_vars['username'] !='' and tools.user_vars['password'] !=''):
+            self.user_login(tools.user_vars['username'], tools.user_vars['password'])
         self.user_settings()
-
-        
         #Make sure the destionation directory exists
         tools.directory_checker(tools.user_vars['destination_directory'])
         self.destination_directory = tools.user_vars['destination_directory']
         tools.downloads_directory = tools.user_vars['destination_directory']        
+        
         #Loop for retrieving images
         #Build query url from user_vars
         #http://alpha.wallhaven.cc/search?q=anime&categories=111&purity=111&resolutions=1600x900,2560x1600,3840x1080&ratios=16x9&sorting=date_added&order=asc
-        while self.run:#self.success_count <= tools.user_vars['max_range']:
+        while ((self.success_count+self.already_exist) < int(tools.user_vars['max_range'] )):#or (self.num_of_walls)):#self.run:#self.success_count <= tools.user_vars['max_range']:
             try:
-                #Adding support for searches first
-                #Need to fix the start page number for multiple pages, get rid of start range and use something else
-                if self.match_count/int(self.thpp) == 0 : start_page = '?page=1' 
-                else: start_page = '?page=%s' % str(self.match_count/int(self.thpp)+1)
-                self.query_url = self.wallhaven_search_url + start_page + '&categories=' + tools.search_query['board'] +\
-                 '&purity=' + tools.search_query['nsfw'] +'&resolutions=' + tools.search_query['res'] + '&ratios=' +\
-                 tools.search_query['res_opt'] + '&sorting=' + tools.search_query['orderby'] +'&order=' +\
-                 tools.search_query['orderby_opt'] + '&q=' + tools.search_query['query'].replace(' ', '+').replace('"', '')
-                print self.query_url
-                print 'Downloading a search_query'
-                 
                 #Generate url for thumbnail match
                 #should put in a loop for each page of requests
                 #Below is the proper order or things!
+                self.build_query()
                 parse.make_soup(self.html_from_url_request(), True)
                 self.num_of_walls = parse.number_of_results()
-                tools.thpp = self.thpp
-                self.wall_links = parse.match_imgs()
-                self.match_images()
-                self.retrieve_images()
-                if self.success_count or self.match_count >= self.num_of_walls:
-                    print 'All wallpapers downloaded or already exist'
-                    print 'Would you like to reset the start range in the confiruation file and start the downloads again?[Yes]'
-                    #code for allowing a user to reset the download counter and start over, so they don't have to do it manually
-                    choice = raw_input()
-                    if choice == '' or choice in self.yes_list:
-                        self.success_count = 0
-                        tools.user_vars['start_range'] = 0
-                    if choice != '' and choice not in self.yes_list:
-                        print "END OF LINE, TRON"
-                        self.run = False
-                        if os.path.exists(self.temp_file_loc): #cleanup the deleteme.html if it still exists
-                            os.unlink(self.temp_file_loc)
-                        sys.exit()
+                if (self.success_count+self.already_exist) <= self.num_of_walls and int(tools.user_vars['max_range']):
+                    if self.num_of_walls <= tools.user_vars['max_range']: print 'Number of wallpapers is lower than max range, downloading %s wallpapers' % str(self.num_of_walls)
+                    elif int(tools.user_vars['max_range']) < self.num_of_walls: print 'Number of wallpapers is higher than max range, limiting download to %s wallpapers' % tools.user_vars['max_range']
+                    #Bail out of loop is you've reached max number of downloads
+                    tools.thpp = self.thpp
+                    self.wall_links = parse.match_imgs()
+                    self.match_images()
+                    self.retrieve_images()
+                    tools.user_vars['start_range'] = self.start_range
+                    tools.write_config(self.query_config_file, tools.search_query, tools.user_vars)
+              
             except IOError as detail:
                 print detail, 'occured. Fix your shit!'
+            if (self.success_count+self.already_exist) == int(tools.user_vars['max_range']) or (self.success_count+self.already_exist == self.num_of_walls):
+                print 'All wallpapers downloaded or already exist'
+                print 'Would you like to reset the start range in the confiruation file and start the downloads again?[Yes]'
+                #code for allowing a user to reset the download counter and start over, so they don't have to do it manually
+                choice = raw_input()
+                if choice == '' or choice in self.yes_list:
+                    self.success_count = 0
+                    self.already_exist = 0
+                    self.start_range = 0
+                    self.match_count = 0
+                    tools.user_vars['start_range'] = 0
+                if choice != '' and choice not in self.yes_list:
+                    print "END OF LINE, TRON"
+                    #self.run = False
+        else:
+            if os.path.exists(self.temp_file_loc): #cleanup the deleteme.html if it still exists
+                os.unlink(self.temp_file_loc)
+                sys.exit()
     def html_from_url_request(self, search_req=None, url=None):
         if search_req==None and url == None:
             #print 'if entered'
@@ -405,8 +286,8 @@ class WallScraper(object):
             #print 'elif entered'
             search_req = urllib2.Request(url, headers=self.http_headers)
         url_html = self.opener.open(search_req).read()
-        temp_file_loc = os.path.join(tools.user_vars['destination_directory'], 'deleteme.html')
-        tools.html_to_file(url_html, tools.user_vars['destination_directory'])
+        temp_file_loc = os.path.join(os.path.abspath('.'), '.temp')
+        tools.html_to_file(url_html, os.path.abspath('.'))
         self.temp_file_loc = temp_file_loc
         return temp_file_loc
     def __init__(self):
@@ -417,10 +298,14 @@ class WallScraper(object):
         self.password = ''
         self.temp_file_loc = ''
         self.thpp = 24
+        self.page_number = 0
+        self.start_range = 0
         #Settings related to logging in to the wallhaven servers, header data and password etc...
         self.wallhaven_search_url = "http://alpha.wallhaven.cc/search"
         self.settings_url = 'http://alpha.wallhaven.cc/settings/browsing'
-
+        self.query_dir_name = ''
+        self.query_config_file = ''
+        self.clean_query_dir = ''
         self.query_url = ''
         self.login_vals = {'username' : self.username, 'password' :self.password}
         self.http_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)',\
@@ -587,13 +472,13 @@ class WallTools(object):
             return destination_directory
         else: #create the path for the user and tell the user the name of the path
             print '%s | didn\'t exist, creating...' %(os.path.abspath(destination_directory))
-            os.makedirs(os.path.join(destination_directory))            
+            os.makedirs(os.path.join(destination_directory))          
     def load_config(self, configuration_file):
         '''
         Takes as input the location of a *.ini file, and returns two tuples
         one for search query data, one for user data
         '''
-        print 'Loading settings from %s' %(os.path.basename(self.config_file))
+        print 'Loading settings from %s' %(os.path.abspath(configuration_file))
         self.config_file = configuration_file
         FILE = open(self.config_file, "rb")
         self.c.readfp(FILE)
@@ -605,57 +490,41 @@ class WallTools(object):
         #Return the variables set from the config file to the dl_search method
         FILE.close()   
         return self.search_query, self.user_vars
-    def write_config(self, config_dir, search_contents, user_contents ):
+    def write_config(self, config_file, search_query=None, user_vars=None ):
         '''
         Takes as input a search query (tuple), and user options (tuple)
         Then output a *.ini file matching the name of the configuration_file string. 
         '''
-        self.config_file = config_dir
         #if the config file doesn't exist, create one from the passed in variables, otherwise, update it like normal
-        if not os.path.isfile(self.config_file):
-            
+        if not os.path.isfile(config_file):
             #Set the variables in the search_query and user_vars to match the updated ones that were passed in
-            self.c.add_section("Search Query")
-            self.c.add_section("User Options")
-            for each in search_contents:
-                self.search_query[each] = search_contents[each]
-            for each in user_contents:
-                self.user_vars[each] = user_contents[each]
-            for each in self.search_query:
-                self.c.set("Search Query", each, self.search_query[each])
+            if not self.c.has_section('Search Query'):
+                self.c.add_section("Search Query")
+            if not self.c.has_section('User Options'):
+                self.c.add_section("User Options")
+            for query in self.search_query:
+                self.c.set("Search Query", query, self.search_query[query])
             for option in self.user_vars:
                 self.c.set("User Options", option, self.user_vars[option])
-            FILE = open(self.config_file, "w")
+            FILE = open(config_file, "w")
             self.c.write(FILE)
             FILE.close()   
-    
         #Update the config file with the latest variables 
-        FILE = open(os.path.abspath(self.config_file), "rb")
-        self.c.readfp(FILE)
-        for option in self.c.options("Search Query"):
-            self.search_query[option] = self.c.get("Search Query", option)
-        for option in self.c.options("User Options"):
-            self.user_vars[option] = self.c.get("User Options", option)
-            
-        #Set the variables in the search_query and user_vars to match the updated ones that were passed in
-        for each in search_contents:
-            self.search_query[each] = search_contents[each]
-        for each in user_contents:
-            self.user_vars[each] = user_contents[each]
-            
+        FILE = open(os.path.abspath(config_file), "rb")
+        self.c.readfp(FILE) 
         #Set the options to match the fields in the query and the changes being written in with this method
-        for each in self.search_query:
-            self.c.set("Search Query", each, self.search_query[each])
+        for query in self.search_query:
+            self.c.set("Search Query", query, self.search_query[query])
         for option in self.user_vars:
             self.c.set("User Options", option, self.user_vars[option])
-        FILE = open(self.config_file, "w")
+        FILE = open(config_file, "w")
         self.c.write(FILE)
         FILE.close()   
         print "Config file updated"
     def html_to_file(self, html_file, destination_directory):
         #This code will output the html of the search page, needs fed a req.open()
         tools.directory_checker(destination_directory)
-        filename = 'deleteme.html'
+        filename = '.temp'
         FILE = open(os.path.join(destination_directory,filename), "wb")
         FILE.writelines(html_file)
         #print "HTML file written to:\n", os.path.abspath(os.path.join(dest_dir, filename))
@@ -664,34 +533,12 @@ class WallTools(object):
             self.user_directory = '.'
             self.downloads_directory = '.'
             self.html_file = '.'
-            self.search_query = {}
-            self.user_vars = {}
             self.config_file = ''
-            self.config_file =  os.path.join(self.downloads_directory, os.path.basename(self.downloads_directory) + '.ini')
             self.c = ConfigParser.ConfigParser()
-            self.q = ''
-            self.nsfw = '110'
-            self.aspect = '0'
-            self.orderby = 'date'
-            self.start_range = 0
-            self.max_range = 2000
-            self.board = '0' 
-            self.res='0' 
-            self.res_opt='0' 
-            self.orderby_opt='0'
-            self.thpp='32'
-            self.section= 'wallpapers'
-            self.username = 'andrusk'
-            self.password = 'p0w3rus3r'
-            self.dest_dir = ''
-            self.query_name = ''
-            self.toplist_time = ''
-            self.dl_to_diff_folders = 'False'
-            self.search_query = ({'query': self.q, 'board': self.board, 'nsfw': self.nsfw, 'res': self.res, 'res_opt': self.res_opt, 'aspect':self.aspect, 
-                       'orderby':self.orderby, 'orderby_opt': self.orderby_opt, 'thpp':self.thpp, 'section': self.section, '1': 1,
-                        'start_range' : self.start_range, 'max_range' : self.max_range, 'query_name': self.query_name, 'dl_to_diff_folders' : self.dl_to_diff_folders, 'toplist_time': self.toplist_time})
-            self.user_vars = ({'destination_directory': self.dest_dir, 'username': self.username, 'password': self.password})
-
+            self.search_query = ({'query': '', 'board': '111', 'nsfw': '110', 'res': '0', 'res_opt': 'eqeq', 
+                                  'aspect':'0', 'orderby':'desc', 'orderby_opt': 'views', 'thpp':'24', 'toplist_time': ''})
+            self.user_vars = ({'destination_directory': '.', 'username': '', 'password': '',  'start_range': '0',
+                                'max_range' : '2000', 'dl_to_diff_folders' : 'true',})
 def main():
     '''This function is used to call the rest of the methods from the command line'''
         
@@ -716,7 +563,6 @@ def main():
     elif args[0] == '--config':
         try:
             config_dir = args[1]
-#            wallbase_auth('andrusk', 'p0w3rus3r')
             scrape.config_download(config_dir)
         except IndexError:
             print 'Using default directory of', os.path.abspath(config_dir)
@@ -728,5 +574,4 @@ if __name__ == "__main__":
     scrape = WallScraper()
     tools = WallTools()
     parse = SoupParse()
-    tools.config_file = './Custom_Search.ini'
     scrape.new_download_generator()
