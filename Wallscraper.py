@@ -17,7 +17,11 @@ import sys
 from time import sleep
 import urllib 
 import urllib2
-from bs4 import BeautifulSoup
+try:
+    from bs4 import BeautifulSoup
+except:
+    print 'You need to download beautfulsoup for this script to work\n'
+    'e.g. from C:\Python27\Scripts\ directory at the cmd line, run c:\pip install beautifulsoup4'
 class WallScraper(object):
     def match_images(self):
         '''This method is takes a list of wallpaper source urls, and builds a 
