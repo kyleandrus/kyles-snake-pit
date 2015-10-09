@@ -17,9 +17,7 @@ import sys
 from time import sleep
 import urllib 
 import urllib2
-import ws_sql
 from bs4 import BeautifulSoup
-import tempfile
 class WallScraper(object):
     def match_images(self):
         '''This method is takes a list of wallpaper source urls, and builds a 
@@ -29,10 +27,13 @@ class WallScraper(object):
             print "No wallpapers found, try a different query"
             sys.exit(1)
         print 'Currently processing matches'        
+        #trim the number of wall links to match number of downloads left in queue
+        if (self.match_count+int(self.thpp)) >= self.max_range: 
+            trim = (self.match_count+int(self.thpp))-self.max_range
+            self.wall_links = self.wall_links[:-trim]
         #For each img url, find the source url of that img in it's own html file
-        for match in self.wall_links:
-            if (self.match_count < self.num_of_walls )and (self.match_count < int(tools.user_vars['max_range'])): #trying to limit matches to max range or number of walls, so I don't run over
-                #print match
+        if len(self.wall_links) != 0:
+            for match in self.wall_links:
                 sleep_count = 1
                 try: #and request the img src url, if http error, wait and try again
                     sleep(.15)
@@ -62,8 +63,6 @@ class WallScraper(object):
                         # if not skip:
                         #     ws_sql.insert_wall_to_db(img_name, img_match_src, purity_match, img_tags)
                         #===============================================================
-                        #increment start number, for picking up where you left off later
-                        #tools.user_vars['start_range'] += 1#int(tools.user_vars['start_range']) + 1     #increment start number, for picking up where you left off later
                         self.start_range +=1
                         os.unlink(self.temp_file_loc)    #delete html after each match to keep directory clean
                     else: print 'Error: No img_src\'s found. Make sure you logged in.'
@@ -76,29 +75,19 @@ class WallScraper(object):
                         print "There's a problem with matching this URL, skipping wallpaper"
                         break
                     continue
+        else:
+            self.main_loop=False #Exit main loop since there are no downloads to be had
         print len(self.img_names_dict), " Matches successfully made."
     def retrieve_images(self):
         """This method is used to retrieve images from a dictionary of wallpapers and urls,
         saves them to your hard drive, and if they already exist skips the download."""
-        #If the chosen directory doesn't exist, create it
-        dest_dir = tools.downloads_directory
-        tools.directory_checker(dest_dir)
-        
-        #Setting the file name and directory in case of purity download filtering
-        self.clean_query_name = tools.search_query['query'].replace(' ', '_').replace('"', '').strip().title()
-        query_dir_name = os.path.join(dest_dir, self.clean_query_name)
-        self.query_config_file = os.path.abspath(os.path.join(query_dir_name, self.clean_query_name+'.ini'))
-        print self.query_config_file
         #Iterate through the loop and download images in the dictionary
         for img in self.img_names_dict:
-
-            
             if self.img_names_dict[img][1] in self.purity_list:
-                purity_dir = os.path.join(query_dir_name,  self.img_names_dict[img][1])
-            else: purity_dir = os.path.join(query_dir_name)
+                purity_dir = os.path.join(self.query_dir_name,  self.img_names_dict[img][1])
+            else: purity_dir = os.path.join(self.query_dir_name)
             purity_file = os.path.join(purity_dir, img)
             tools.directory_checker(purity_dir)                            
-            
             if self.img_names_dict[img][1] in self.purity_list:
                 verbose_output = ((self.page_number -1 )*int(self.thpp)+ self.img_names_dict.keys().index(img)%int(self.thpp) +1, img, self.img_names_dict[img][1])
                 #else if image exists in purity directory, don't move it
@@ -106,24 +95,19 @@ class WallScraper(object):
                     self.already_exist +=1
                     print "File %d, %s exists in %s folder, not moving" % verbose_output
                 #If image exists is in main directory, and dl to diff true, move image to purity folder
-                elif os.path.isfile(os.path.join(query_dir_name, img)):
+                elif os.path.isfile(os.path.join(self.query_dir_name, img)):
                     self.already_exist +=1
                     print "File %d, %s exists, moving to %s folder" % verbose_output
-                    shutil.move(os.path.join(query_dir_name, img), purity_dir)
+                    shutil.move(os.path.join(self.query_dir_name, img), purity_dir)
                 #else if image doesn't exist in purity direcotry, download that shit
                 elif not os.path.isfile(purity_file):
                     print 'File %d, %s downloading to %s folder' % verbose_output
                     sleep_count = 0
                     while True:
                         try:
-                            #new url retrieve code
-                            #self.opener.open(self.img_names_dict[img][0])
-                            #print img
                             self.html_from_url_request(url=self.img_names_dict[img][0])
                             #print self.temp_file_loc
                             shutil.move(self.temp_file_loc, purity_file)        
-                            #Old url retrieve code
-                            #urllib.urlretrieve(self.img_names_dict[img][0], purity_file)
                             self.success_count += 1
                             sleep(.5)
                         except IOError as detail:
@@ -137,10 +121,10 @@ class WallScraper(object):
                         break
             #Check whether the image already exists or not, if yes, skip download, if not, download it used when purity sorting is not enabled
             if self.img_names_dict[img][1] not in self.purity_list:
-                if os.path.isfile(os.path.join(dest_dir, img))  :
+                if os.path.isfile(os.path.join(tools.downloads_directory, img))  :
                     self.already_exist +=1
                     print 'File %d, %s exists in %s, not moved' % verbose_output
-                elif not os.path.isfile(os.path.join(dest_dir, img)):
+                elif not os.path.isfile(os.path.join(tools.downloads_directory, img)):
                     self.already_exist +=1
                     print 'File %d, %s downlaoding to %s folder' % verbose_output
                     sleep_count = 0
@@ -148,10 +132,7 @@ class WallScraper(object):
                         try:
                             #print self.img_names_dict[img]
                             self.html_from_url_request(url=self.img_names_dict[img])
-                            #print self.temp_file_loc
                             shutil.move(self.temp_file_loc, os.path.join(purity_file))
-                            #old urlretrieve code
-                            #urllib.urlretrieve(self.img_names_dict[img][0], os.path.join(dest_dir, img))
                             self.success_count += 1
                             sleep(.5)
                         except IOError as detail:
@@ -208,7 +189,13 @@ class WallScraper(object):
                     %self.thpp
                     return self.thpp
     def build_query(self):
-        #Adding support for searches first
+        #check config value if query existed, and set match_count to pick up where it left off. Only do this once per scrape.
+        if self.run_once:
+            self.run_once = False
+            self.start_range = int(tools.user_vars['start_range'])
+            self.max_range = int(tools.user_vars['max_range'])
+            if self.start_range != 0:
+                self.match_count = self.start_range             
         self.page_number = (self.match_count/int(self.thpp)+1)
         self.query_url = self.wallhaven_search_url + '?&page=' + str(self.page_number) + '&categories=' + tools.search_query['board'] +\
          '&purity=' + tools.search_query['nsfw'] +'&resolutions=' + tools.search_query['res'] + '&ratios=' +\
@@ -217,67 +204,19 @@ class WallScraper(object):
         #print self.query_url
         print 'Downloading a search_query'
         return self.query_url
-    def new_download_generator(self):
-        '''Check the dest directory, if not default, create missing dir
-        then start scraping the thumbnail page for image'''
-        #Load config using tools class - set search query and user variables
-        #to the settings in the file. 
-        tools.search_query, tools.user_vars = tools.load_config(r'C:\Users\kyle\workspace\wall_scraper\Custom_Search.ini')
-        if tools.search_query['nsfw'][2] == '1' and (tools.user_vars['username'] =='' or tools.user_vars['password'] == ''):
-            print 'type your username and press enter'
-            tools.user_vars['username'] = raw_input()
-            print 'type your password and press enter'
-            tools.user_vars['password'] = raw_input()
-        elif tools.search_query['nsfw'][2] == '1' and (tools.user_vars['username'] !='' and tools.user_vars['password'] !=''):
-            self.user_login(tools.user_vars['username'], tools.user_vars['password'])
-        self.user_settings()
-        #Make sure the destionation directory exists
-        tools.directory_checker(tools.user_vars['destination_directory'])
-        self.destination_directory = tools.user_vars['destination_directory']
-        tools.downloads_directory = tools.user_vars['destination_directory']        
-        
-        #Loop for retrieving images
-        #Build query url from user_vars
-        #http://alpha.wallhaven.cc/search?q=anime&categories=111&purity=111&resolutions=1600x900,2560x1600,3840x1080&ratios=16x9&sorting=date_added&order=asc
-        while ((self.success_count+self.already_exist) < int(tools.user_vars['max_range'] )):#or (self.num_of_walls)):#self.run:#self.success_count <= tools.user_vars['max_range']:
-            try:
-                #Generate url for thumbnail match
-                #should put in a loop for each page of requests
-                #Below is the proper order or things!
-                self.build_query()
-                parse.make_soup(self.html_from_url_request(), True)
-                self.num_of_walls = parse.number_of_results()
-                if (self.success_count+self.already_exist) <= self.num_of_walls and int(tools.user_vars['max_range']):
-                    if self.num_of_walls <= tools.user_vars['max_range']: print 'Number of wallpapers is lower than max range, downloading %s wallpapers' % str(self.num_of_walls)
-                    elif int(tools.user_vars['max_range']) < self.num_of_walls: print 'Number of wallpapers is higher than max range, limiting download to %s wallpapers' % tools.user_vars['max_range']
-                    #Bail out of loop is you've reached max number of downloads
-                    tools.thpp = self.thpp
-                    self.wall_links = parse.match_imgs()
-                    self.match_images()
-                    self.retrieve_images()
-                    tools.user_vars['start_range'] = self.start_range
-                    tools.write_config(self.query_config_file, tools.search_query, tools.user_vars)
-              
-            except IOError as detail:
-                print detail, 'occured. Fix your shit!'
-            if (self.success_count+self.already_exist) == int(tools.user_vars['max_range']) or (self.success_count+self.already_exist == self.num_of_walls):
-                print 'All wallpapers downloaded or already exist'
-                print 'Would you like to reset the start range in the confiruation file and start the downloads again?[Yes]'
-                #code for allowing a user to reset the download counter and start over, so they don't have to do it manually
-                choice = raw_input()
-                if choice == '' or choice in self.yes_list:
-                    self.success_count = 0
-                    self.already_exist = 0
-                    self.start_range = 0
-                    self.match_count = 0
-                    tools.user_vars['start_range'] = 0
-                if choice != '' and choice not in self.yes_list:
-                    print "END OF LINE, TRON"
-                    #self.run = False
-        else:
-            if os.path.exists(self.temp_file_loc): #cleanup the deleteme.html if it still exists
-                os.unlink(self.temp_file_loc)
-                sys.exit()
+    def run_check(self):
+        if (self.success_count+self.already_exist) >= (self.num_of_walls): self.main_loop = False
+        elif (self.success_count+self.already_exist) >= self.max_range: self.main_loop= False
+        elif (self.start_range) >= (self.num_of_walls): self.main_loop = False
+        elif (self.start_range) >=  self.max_range: self.main_loop = False
+    def set_query_config_file_name(self):
+        #If the chosen directory doesn't exist, create it
+        dest_dir = tools.downloads_directory
+        tools.directory_checker(dest_dir)
+        #Setting the file name and directory in case of purity download filtering
+        self.clean_query_name = tools.search_query['query'].replace(' ', '_').replace('"', '').strip().title()
+        self.query_dir_name = os.path.join(dest_dir, self.clean_query_name)
+        self.query_config_file = os.path.abspath(os.path.join(self.query_dir_name, self.clean_query_name+'.ini'))
     def html_from_url_request(self, search_req=None, url=None):
         if search_req==None and url == None:
             #print 'if entered'
@@ -290,8 +229,79 @@ class WallScraper(object):
         tools.html_to_file(url_html, os.path.abspath('.'))
         self.temp_file_loc = temp_file_loc
         return temp_file_loc
+    def download_loop(self, dest_dir):
+        '''Check the dest directory, if not default, create missing dir
+        then start scraping the thumbnail page for image'''
+        #Load config using tools class - set search query and user variables
+        #to the settings in the file. 
+        self.user_directory = dest_dir 
+        tools.search_query, tools.user_vars = tools.load_config(os.path.join(os.path.abspath(self.user_directory), 'Custom_Search.ini'))
+        if tools.search_query['nsfw'][2] == '1' and (tools.user_vars['username'] =='' or tools.user_vars['password'] == ''):
+            print 'type your username and press enter'
+            tools.user_vars['username'] = raw_input()
+            print 'type your password and press enter'
+            tools.user_vars['password'] = raw_input()
+        elif tools.search_query['nsfw'][2] == '1' and (tools.user_vars['username'] !='' and tools.user_vars['password'] !=''):
+            self.user_login(tools.user_vars['username'], tools.user_vars['password'])
+        self.user_settings()
+        #Make sure the destionation directory exists
+        tools.directory_checker(tools.user_vars['destination_directory'])
+        self.destination_directory = tools.user_vars['destination_directory']
+        tools.downloads_directory = tools.user_vars['destination_directory']  
+        scrape.set_query_config_file_name()
+        if os.path.exists(self.query_config_file):
+            print 'Pre-existing query found, picking up where it left off'
+            tools.search_query, tools.user_vars = tools.load_config(self.query_config_file)
+        #Loop for retrieving images
+        #Build query url from user_vars
+        #http://alpha.wallhaven.cc/search?q=anime&categories=111&purity=111&resolutions=1600x900,2560x1600,3840x1080&ratios=16x9&sorting=date_added&order=asc
+        while self.main_loop:#(self.success_count+self.already_exist) <= (self.num_of_walls or int(tools.user_vars['max_range'] )):#or (self.num_of_walls)):#self.run:#self.success_count <= tools.user_vars['max_range']:
+            try:
+                #Generate url for thumbnail match
+                #should put in a loop for each page of requests
+                #Below is the proper order or things!
+                self.build_query()
+                parse.make_soup(self.html_from_url_request(), True)
+                self.num_of_walls = parse.number_of_results()
+                self.run_check()
+                #Check for existence of query in download directory, if exists, load it
+                if self.num_of_walls <= self.max_range: print 'Number of wallpapers is lower than max range, downloading %s wallpapers' % str(self.num_of_walls)
+                elif self.max_range >= self.num_of_walls: print 'Number of wallpapers is higher than max range, limiting download to %d wallpapers' % self.max_range
+                #Bail out of loop is you've reached max number of downloads
+                tools.thpp = self.thpp
+                self.wall_links = parse.match_imgs()
+                self.match_images()
+                self.retrieve_images()
+                tools.user_vars['start_range'] = self.start_range
+                tools.user_vars['max_range'] = self.max_range
+                tools.write_config(self.query_config_file, tools.search_query, tools.user_vars)
+                self.run_check()
+            except IOError as detail:
+                print detail, 'occured. Fix your shit!'                
+        else:
+            print 'All wallpapers downloaded or already exist'
+            print 'Would you like to reset the start range in the confiruation file and start the downloads again?[Yes]'
+            #code for allowing a user to reset the download counter and start over, so they don't have to do it manually
+            choice = raw_input()
+            if choice == '' or choice in self.yes_list:
+                tools.user_vars['start_range'] = 0
+                tools.write_config(self.query_config_file, tools.search_query, tools.user_vars)
+                self.success_count = 0
+                self.already_exist = 0
+                self.start_range = 0
+                self.match_count = 0
+                self.start_range = 0
+                self.main_loop = True
+                self.run_once = True
+                self.download_loop(os.path.abspath(self.user_directory))
+            if choice != '' and choice not in self.yes_list:
+                print "END OF LINE, TRON"
+                if os.path.exists(self.temp_file_loc): #cleanup the deleteme.html if it still exists
+                    os.unlink(self.temp_file_loc)
+                    sys.exit()
     def __init__(self):
-        self.run = True
+        super(WallScraper, self).__init__()
+        self.main_loop = True
         self.user_directory = ''
         self.destination_directory  = ''
         self.username = ''
@@ -300,6 +310,8 @@ class WallScraper(object):
         self.thpp = 24
         self.page_number = 0
         self.start_range = 0
+        self.max_range = 0
+        self.run_once = True
         #Settings related to logging in to the wallhaven servers, header data and password etc...
         self.wallhaven_search_url = "http://alpha.wallhaven.cc/search"
         self.settings_url = 'http://alpha.wallhaven.cc/settings/browsing'
@@ -363,29 +375,6 @@ class SoupParse(object):
         self.soup = BeautifulSoup(BeautifulSoup(a, 'html.parser').prettify(), 'html.parser')
 
         return self.soup
-    def parse_collection(self):
-        '''This method takes as input either soup and parses the soup for 
-        images from a users collection. These collections must be public to 
-        be parsed. NOTE: Users can parse their private collections using the 
-        parse_private_collection method.'''
-        #If I'm parsing a users collections, use the following parsing code
-        #Opening an html_file for parsing
-        self.soup
-        count = 0
-        for link in self.soup.find_all('a', href=re.compile('wallbase.cc/user/collection/\d+')):
-            coll_url = link.get('href')
-            title_string = link.contents[3].contents
-            #Code for finding number of walls in the collection
-            num_count = re.search(r'class="numcount"\W(\d+)\W', str(link.contents[1].contents))
-            self.src_dict[str(title_string)] = [count, str(coll_url), num_count.group(1)]
-            count +=1
-        sorted_dict = sorted(self.src_dict.iteritems(), key=operator.itemgetter(1))
-        return sorted_dict    
-    def parse_private_collection(self, soup):
-        '''Used to download a users private collection. Note, user must be logged
-        in order to access their collection. If the user is not logged in, this will 
-        fail'''
-        pass
     def match_imgs(self):
         wall_links = []
         for link in self.soup.find_all('a', href=re.compile('wallhaven.cc/wallpaper/\d+')):
@@ -416,6 +405,7 @@ class SoupParse(object):
         find_num = self.soup.find('h1')
         active_walls = re.search(r'(\d+\,*\d*\,*\d*\,*\d*)(\sWallpapers\sfound)', str(find_num))
         self.num_of_walls = active_walls.group(1).replace(',', '')
+        print self.num_of_walls, 'wallpapers found'
         return self.num_of_walls
     def find_img_tags(self, soup):
         '''Used to parse tag data from wallpapers. '''
@@ -445,6 +435,7 @@ class SoupParse(object):
         sorted_dict = sorted(self.src_dict.iteritems(), key=operator.itemgetter(1))
         return sorted_dict    
     def __init__(self):
+        super(SoupParse, self).__init__()
         self.html_file = ''
         self.thpp = 24
         self.user_directory = '.'
@@ -486,7 +477,6 @@ class WallTools(object):
             self.search_query[option] = self.c.get("Search Query", option)
         for option in self.c.options("User Options"):
             self.user_vars[option] = self.c.get("User Options", option)
-        
         #Return the variables set from the config file to the dl_search method
         FILE.close()   
         return self.search_query, self.user_vars
@@ -530,6 +520,7 @@ class WallTools(object):
         #print "HTML file written to:\n", os.path.abspath(os.path.join(dest_dir, filename))
         FILE.close()
     def __init__(self):
+            super(WallTools, self).__init__()
             self.user_directory = '.'
             self.downloads_directory = '.'
             self.html_file = '.'
@@ -541,32 +532,33 @@ class WallTools(object):
                                 'max_range' : '2000', 'dl_to_diff_folders' : 'true',})
 def main():
     '''This function is used to call the rest of the methods from the command line'''
-        
     # Make a list of command line arguments, omitting the [0] element which is the script itself.
     args = sys.argv[1:]
-    
+     
     #If no argruments are given, print proper usage and call the search method
     if not args:
-        print "\nProper usage:\n\n\t[Wallscraper.py --favorites  'This allows you to download your own favorites collections from wallbase(username and password required!)]\n\n\t[Wallscraper.py --search 'This prompts the user to enter in specific search options and performs a query based on those options]\n\n\t[Wallscraper.py --config (directory where the CustomSearch_ini is located, or where you wish to create one. Leave blank for default e.g. c:\\Wallbase\\)]"; 
-    
+        print "\nProper usage:\n\n\t[Wallscraper.py --config (directory where the CustomSearch_ini is located, or where you wish to create one. Leave blank for default e.g. c:\\Wallbase\\)]"; 
+     
     #Default values passed to the method when called through a command line argument
     config_dir = '.'
     if len(args) == 0:
         print "\n\nYou must enter an argument to proceed!"
-    elif args[0] == '--favorites':
-        try:
-            fdest_dir = args[1]
-        except IndexError:
-            fdest_dir = ''
-        scrape.favorites_download(fdest_dir)
-        del args[0:0]
+    #===========================================================================
+    # elif args[0] == '--favorites':
+    #     try:
+    #         fdest_dir = args[1]
+    #     except IndexError:
+    #         fdest_dir = ''
+    #     scrape.favorites_download(fdest_dir)
+    #     del args[0:0]
+    #===========================================================================
     elif args[0] == '--config':
         try:
             config_dir = args[1]
-            scrape.config_download(config_dir)
+            scrape.download_loop(config_dir)
         except IndexError:
             print 'Using default directory of', os.path.abspath(config_dir)
-            scrape.config_download(config_dir)
+            scrape.download_loop(config_dir)
 if __name__ == "__main__":
     '''If the scripts initiates itself, run the main method
     this prevent the main from being called if this module is 
@@ -574,4 +566,4 @@ if __name__ == "__main__":
     scrape = WallScraper()
     tools = WallTools()
     parse = SoupParse()
-    scrape.new_download_generator()
+    main()
