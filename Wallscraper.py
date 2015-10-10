@@ -577,5 +577,4 @@ if __name__ == "__main__":
     scrape = WallScraper()
     tools = WallTools()
     parse = SoupParse()
-    scrape.download_loop('.')
-#     main()
+    main()
