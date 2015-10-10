@@ -34,7 +34,7 @@ class WallScraper(object):
         #trim the number of wall links to match number of downloads left in queue
         if (self.match_count+int(self.thpp)) >= self.max_range: 
             trim = (self.match_count+int(self.thpp))-self.max_range
-            self.wall_links = self.wall_links[:-trim]
+            self.wall_links = self.wall_links[:-trim]            
         #For each img url, find the source url of that img in it's own html file
         if len(self.wall_links) != 0:
             for match in self.wall_links:
@@ -199,12 +199,15 @@ class WallScraper(object):
             self.start_range = int(tools.user_vars['start_range'])
             self.max_range = int(tools.user_vars['max_range'])
             if self.start_range != 0:
-                self.match_count = self.start_range             
+                self.match_count = self.start_range    
+        if ('toplist' in tools.search_query['query']): self.query_string = ''     
+        else:
+            self.query_string = tools.search_query['query']
         self.page_number = (self.match_count/int(self.thpp)+1)
         self.query_url = self.wallhaven_search_url + '?&page=' + str(self.page_number) + '&categories=' + tools.search_query['board'] +\
          '&purity=' + tools.search_query['nsfw'] +'&resolutions=' + tools.search_query['res'] + '&ratios=' +\
          tools.search_query['res_opt'] + '&sorting=' + tools.search_query['orderby'] +'&order=' +\
-         tools.search_query['orderby_opt'] + '&q=' + tools.search_query['query'].replace(' ', '%20').strip()
+         tools.search_query['orderby_opt'] + '&q=' + self.query_string.replace(' ', '%20').strip()
         #print self.query_url
         print 'Downloading a search_query'
         return self.query_url
@@ -213,12 +216,15 @@ class WallScraper(object):
         elif (self.success_count+self.already_exist) >= self.max_range: self.main_loop= False
         elif (self.start_range) >= (self.num_of_walls): self.main_loop = False
         elif (self.start_range) >=  self.max_range: self.main_loop = False
+        if int(self.num_of_walls) <=self.thpp:
+            if int(self.num_of_walls) -(self.success_count+self.already_exist) <= self.thpp: self.main_loop = False
     def set_query_config_file_name(self):
         #If the chosen directory doesn't exist, create it
         dest_dir = tools.downloads_directory
         tools.directory_checker(dest_dir)
         #Setting the file name and directory in case of purity download filtering
         self.clean_query_name = tools.search_query['query'].replace(' ', '_').replace('"', '').strip().title()
+        if self.clean_query_name == '': self.clean_query_name = 'Toplist'
         self.query_dir_name = os.path.join(dest_dir, self.clean_query_name)
         self.query_config_file = os.path.abspath(os.path.join(self.query_dir_name, self.clean_query_name+'.ini'))
     def html_from_url_request(self, search_req=None, url=None):
@@ -323,6 +329,7 @@ class WallScraper(object):
         self.query_config_file = ''
         self.clean_query_dir = ''
         self.query_url = ''
+        self.query_string = ''
         self.login_vals = {'username' : self.username, 'password' :self.password}
         self.http_headers = {'User-agent' : 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)',\
                            'referer': 'http://alpha.wallhaven.cc'} 
@@ -570,4 +577,5 @@ if __name__ == "__main__":
     scrape = WallScraper()
     tools = WallTools()
     parse = SoupParse()
-    main()
+    scrape.download_loop('.')
+#     main()
