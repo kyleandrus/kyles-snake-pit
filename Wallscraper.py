@@ -212,12 +212,14 @@ class WallScraper(object):
         print 'Downloading a search_query'
         return self.query_url
     def run_check(self):
-        if (self.success_count+self.already_exist) >= (self.num_of_walls): self.main_loop = False
-        elif (self.success_count+self.already_exist) >= self.max_range: self.main_loop= False
-        elif (self.start_range) >= (self.num_of_walls): self.main_loop = False
-        elif (self.start_range) >=  self.max_range: self.main_loop = False
-        if int(self.num_of_walls) <=self.thpp:
-            if int(self.num_of_walls) -(self.success_count+self.already_exist) <= self.thpp: self.main_loop = False
+        #print ' thpp', self.thpp, 'success', self.success_count, 'already down', self.already_exist, 'numofwall',  self.num_of_walls, 'start range', self.start_range, 'max range', self.max_range
+        if int(self.num_of_walls) and int(self.max_range):
+            if (int(self.success_count)+int(self.already_exist)) >= int(self.num_of_walls): self.main_loop = False
+            elif (int(self.success_count)+int(self.already_exist)) >= int(self.max_range): self.main_loop= False
+            elif int(self.start_range) >= int(self.num_of_walls): self.main_loop = False
+            elif int(self.start_range) >= int( self.max_range): self.main_loop = False
+            elif int(self.thpp )>= int(self.num_of_walls): 
+                if int(self.start_range )>= int(self.thpp) - (self.success_count+self.already_exist): self.main_loop = False
     def set_query_config_file_name(self):
         #If the chosen directory doesn't exist, create it
         dest_dir = tools.downloads_directory
@@ -244,6 +246,7 @@ class WallScraper(object):
         then start scraping the thumbnail page for image'''
         #Load config using tools class - set search query and user variables
         #to the settings in the file. 
+        #I'm really overutilizing class variables. There's no need to use so many tools instance variables. need to clean up. 
         self.user_directory = dest_dir 
         tools.search_query, tools.user_vars = tools.load_config(os.path.join(os.path.abspath(self.user_directory), 'Custom_Search.ini'))
         if tools.search_query['nsfw'][2] == '1' and (tools.user_vars['username'] =='' or tools.user_vars['password'] == ''):
@@ -262,17 +265,21 @@ class WallScraper(object):
         if os.path.exists(self.query_config_file):
             print 'Pre-existing query found, picking up where it left off'
             tools.search_query, tools.user_vars = tools.load_config(self.query_config_file)
+        self.start_range = tools.user_vars['start_range']
+        self.max_range = tools.user_vars['max_range']
+        #get number of walls from query outside of loop to prevent over matching
+        self.build_query()
+        parse.make_soup(self.html_from_url_request(), True)
+        self.num_of_walls = parse.number_of_results()
+        self.run_check()
         #Loop for retrieving images
         #Build query url from user_vars
         #http://alpha.wallhaven.cc/search?q=anime&categories=111&purity=111&resolutions=1600x900,2560x1600,3840x1080&ratios=16x9&sorting=date_added&order=asc
         while self.main_loop:#(self.success_count+self.already_exist) <= (self.num_of_walls or int(tools.user_vars['max_range'] )):#or (self.num_of_walls)):#self.run:#self.success_count <= tools.user_vars['max_range']:
             try:
-                #Generate url for thumbnail match
-                #should put in a loop for each page of requests
-                #Below is the proper order or things!
+                #Generate urls from thumbnail thumbnail match
                 self.build_query()
                 parse.make_soup(self.html_from_url_request(), True)
-                self.num_of_walls = parse.number_of_results()
                 self.run_check()
                 #Check for existence of query in download directory, if exists, load it
                 if self.num_of_walls <= self.max_range: print 'Number of wallpapers is lower than max range, downloading %s wallpapers' % str(self.num_of_walls)
@@ -577,4 +584,5 @@ if __name__ == "__main__":
     scrape = WallScraper()
     tools = WallTools()
     parse = SoupParse()
+    #scrape.download_loop('.')
     main()
