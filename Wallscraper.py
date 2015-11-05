@@ -37,7 +37,7 @@ class WallScraper(object):
         if (self.match_count + int(self.thpp)) >= self.max_range:
             trim = int(self.thpp) - self.max_range
             # print len(self.img_names_dict)
-            print self.match_count, self.thpp, self.max_range, len(self.img_names_dict), trim
+            # print self.match_count, self.thpp, self.max_range, len(self.img_names_dict), trim
             n = 1
             while n <= trim:
                 for k in sorted(self.img_names_dict.iterkeys(), reverse=True):
@@ -79,7 +79,6 @@ class WallScraper(object):
         purity_file = os.path.join(purity_dir, img_name)
         tools.directory_checker(purity_dir)
         ext_list = ['jpg', 'png', 'PNG', 'JPG', 'JPEG', 'jpeg']
-        self.check_file_ext(purity_file, ext_list)
         file_number = ((self.page_number - 1) * int(self.thpp) + img_names_dict.keys().index(img_name) % int(self.thpp) + 1)
         file_name = (img_name.replace('jpg', self.file_ext))
         if tools.user_vars['dl_to_diff_folders'] == 'True':
@@ -102,9 +101,10 @@ class WallScraper(object):
                     try:
                         img_url = img_url.replace('jpg', ext)
                         self.html_from_url_request(url=img_url)
-                        file_name = file_name[:-3] + ext
+                        file_name = file_name[:-4] + '.' + ext
                         print 'File %-5d %-23s downloading to %s folder' % (file_number, file_name, os.path.basename(purity_dir))
                         shutil.move(self.temp_file_loc, purity_file.replace('jpg', ext))
+                        self.success_count += 1
                         break
                     except IOError as detail:
                         if '404' in detail:
@@ -119,7 +119,6 @@ class WallScraper(object):
                                 print '\t', detail, '\n\tURL unresponsive, skipping file'
                                 break
                             continue
-                    self.success_count += 1
                     continue
                 break
 
@@ -326,7 +325,7 @@ class WallScraper(object):
         self.page_number = 0
         self.start_range = 0
         self.max_range = 0
-        self.file_ext = ''
+        self.file_ext = 'jpg'
         self.run_once = True
         # Settings related to logging in to the wallhaven servers, header data and password etc...
         self.wallhaven_search_url = "http://alpha.wallhaven.cc/search"
