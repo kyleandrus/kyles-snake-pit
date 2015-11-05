@@ -244,6 +244,7 @@ class WallScraper(object):
         self.destination_directory = tools.user_vars['destination_directory']
         tools.downloads_directory = tools.user_vars['destination_directory']
         scrape.set_query_config_file_name()
+        # TODO Add the ability to overwrite an excising query ini file with new information from the custom search
         if os.path.exists(self.query_config_file):
             print 'Pre-existing query found, picking up where it left off'
             tools.search_query, tools.user_vars = tools.load_config(self.query_config_file)
