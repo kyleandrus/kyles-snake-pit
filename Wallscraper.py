@@ -225,7 +225,7 @@ class WallScraper(object):
         then start scraping the thumbnail page for image"""
         # Load config using tools class - set search query and user variables
         # to the settings in the file.
-        # I'm really overutilizing class variables. There's no need to use so many tools instance variables. need to clean up.
+        # I'm really over utilizing class variables. There's no need to use so many tools instance variables. need to clean up.
         self.user_directory = dest_dir
         tools.search_query, tools.user_vars = tools.load_config(
             os.path.join(os.path.abspath(self.user_directory), 'Custom_Search.ini'))
@@ -239,7 +239,7 @@ class WallScraper(object):
                 (tools.user_vars['username'] != '' and tools.user_vars['password'] != ''):
             self.user_login(tools.user_vars['username'], tools.user_vars['password'])
         self.user_settings()
-        # Make sure the destionation directory exists
+        # Make sure the destination directory exists
         tools.directory_checker(tools.user_vars['destination_directory'])
         self.destination_directory = tools.user_vars['destination_directory']
         tools.downloads_directory = tools.user_vars['destination_directory']
@@ -292,7 +292,7 @@ class WallScraper(object):
                 print detail, 'occured. Fix your shit!'
         else:
             print 'All wallpapers downloaded or already exist'
-            print 'Would you like to reset the start range in the confiruation file and start the downloads again?[Yes]'
+            print 'Would you like to reset the start range in the configuration file and start the downloads again?[Yes]'
             # code for allowing a user to reset the download counter and start over, so they don't have to do it manually
             choice = raw_input()
             if choice == '' or choice in self.yes_list:
@@ -332,10 +332,8 @@ class WallScraper(object):
         self.settings_url = 'http://alpha.wallhaven.cc/settings/browsing'
         self.query_dir_name = ''
         self.query_config_file = ''
-        self.clean_query_dir = ''
         self.query_url = ''
         self.query_string = ''
-        self.login_vals = {'username': self.username, 'password': self.password}
         self.http_headers = {'User-agent': 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)',
                              'referer': 'http://alpha.wallhaven.cc'}
         # Global dictionary used to store the source of a wallpaper, it's name, and it's purity
@@ -345,11 +343,6 @@ class WallScraper(object):
         self.success_count = 0
         self.already_exist = 0
         self.num_of_walls = 0
-        self.wall_links = []
-        self.purity_list = ('NSFW', 'SKETCHY', 'SFW')
-        self.purity_bits = ('001', '011', '111')
-        self.toplist_dict = {"0": "AllTime", "3m": '3Months', '2m': '2Months', '1m': '1Month',
-                             '2w': '2Weeks', '1w': '1Week', '3d': '3Days', '1d': '1Day'}
         self.yes_list = {'yes', 'y', 'Y', 'Yes', 'YES', 'YEs', 'yeS', 'yES'}
         # Installing the CookieJar - This will make the urlopener bound to the CookieJar.
         # This allows each urlopen to use the cookies for the user session, essential for accessing NSFW images
@@ -445,11 +438,8 @@ class SoupParse(object):
         super(SoupParse, self).__init__()
         self.html_file = ''
         self.thpp = 24
-        self.user_directory = '.'
         self.soup = ''
-        self.src_dict = {}
         self.img_name = ''
-        self.img_src = ''
         self.num_of_walls = ''
         self.file_tags = {}
 
