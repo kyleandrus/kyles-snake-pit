@@ -220,15 +220,16 @@ class WallScraper(object):
         html_to_file(url_html, os.path.abspath('.'), temp_file_loc=self.temp_file_loc)
         return self.temp_file_loc
 
-    def download_loop(self, dest_dir):
+    def download_loop(self, dest_dir, config_file):
         """Check the dest directory, if not default, create missing dir
         then start scraping the thumbnail page for image"""
         # Load config using tools class - set search query and user variables
         # to the settings in the file.
         # I'm really over utilizing class variables. There's no need to use so many tools instance variables. need to clean up.
         self.user_directory = dest_dir
+        self.query_config_file = config_file
         tools.search_query, tools.user_vars = tools.load_config(
-            os.path.join(os.path.abspath(self.user_directory), 'Custom_Search.ini'))
+            os.path.join(os.path.abspath(self.user_directory), config_file))
         if tools.search_query['nsfw'][2] == '1' and \
                 (tools.user_vars['username'] == '' or tools.user_vars['password'] == ''):
             print 'type your username and press enter'
@@ -306,7 +307,7 @@ class WallScraper(object):
                 self.start_range = 0
                 self.main_loop = True
                 self.run_once = True
-                self.download_loop(os.path.abspath(self.user_directory))
+                self.download_loop(os.path.abspath(self.user_directory), self.query_config_file)
             if choice != '' and choice not in self.yes_list:
                 print "END OF LINE, TRON"
                 if os.path.exists(self.temp_file_loc):
@@ -547,7 +548,6 @@ def main():
     if not args:
         print "\nProper usage:\n\n\t[Wallscraper.py --config (directory where the CustomSearch_ini is located," \
               " or where you wish to create one. Leave blank for default e.g. c:\\Wallbase\\)]"
-    config_dir = '.'
     if len(args) == 0:
         print "\n\nYou must enter an argument to proceed!"
     # ===========================================================================
@@ -561,11 +561,14 @@ def main():
     # ===========================================================================
     elif args[0] == '--config':
         try:
-            config_dir = args[1]
-            scrape.download_loop(config_dir)
+            config_dir = args[1].replace(args[1].split('\\')[-1], '')
+            config_file = args[1].split('\\')[-1]
+            scrape.download_loop(config_dir, config_file)
         except IndexError:
-            print 'Using default directory of', os.path.abspath(config_dir)
-            scrape.download_loop(config_dir)
+            config_dir = '.'
+            config_file = 'Custom_Search.ini'
+            print 'Using default directory of', os.path.abspath(os.path.join(config_dir, config_file))
+            scrape.download_loop(config_dir, config_file)
 
 
 if __name__ == "__main__":
