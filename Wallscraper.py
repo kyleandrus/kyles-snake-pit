@@ -49,7 +49,7 @@ class WallScraper(object):
             self.match_count = self.start_range
         else:
             self.main_loop = False  # Exit main loop since there are no downlaods to be had
-        print "Matching nnew images...\n", len(self.img_names_dict), "Matches Successfully made."
+        print "Matching new images...\n", len(self.img_names_dict), "Matches Successfully made."
 
     def img_threads(self, q, img_names_dict, img_name):
         q.put_nowait(self.retrieve_images(img_names_dict, img_name))
@@ -169,7 +169,12 @@ class WallScraper(object):
                         % self.thpp
                     return self.thpp
 
-    def build_query(self):
+    def build_url_request(self):
+        """
+        This method will take the class variables set by the user and the config file and create url's for processing.
+        These urls are used to grab things like search pages, favorites pages, user settings etc...
+        :return:
+        """
         # check config value if query existed, and set match_count to pick up where it left off. Only do this once per scrape.
         if self.run_once:
             self.run_once = False
@@ -298,11 +303,11 @@ class WallScraper(object):
         self.start_range = tools.user_vars['start_range']
         self.max_range = tools.user_vars['max_range']
         # get number of walls from query outside of loop to prevent over matching
-        self.build_query()
+        self.build_url_request()
         parse.make_soup(self.html_from_url_request(), True)
         if self.query_type == 'search':
             self.num_of_walls = parse.number_of_results()
-        elif self.query_type == 'favorites':
+        elif self.query_type == 'favorites' and self.fav_prompt:
             # Generate, display, and prompt the user to select a favorite to download
             parse.user_collections()
             print '\nWhich user collection would you like to download?'
@@ -317,13 +322,14 @@ class WallScraper(object):
             self.printv(parse.uc[favs[int(choice) - 1]][1])
             self.num_of_walls = parse.uc[favs[int(choice) - 1]][0]
             self.query_url = parse.uc[favs[int(choice) - 1]][1]
+            self.fav_prompt = False
 
         self.run_check()
         # Loop for retrieving images
         while self.main_loop:
             try:
                 # Generate urls from thumbnail thumbnail match
-                self.build_query()
+                self.build_url_request()
                 parse.make_soup(self.html_from_url_request(), True)
                 self.run_check()
                 # Check for existence of query in download directory, if exists, load it
@@ -393,10 +399,12 @@ class WallScraper(object):
         self.file_ext = 'jpg'
         self.run_once = True
         self.verbose = False
+        self.fav_prompt = True
         # Settings related to logging in to the wallhaven servers, header data and password etc...
         self.wallhaven_search_url = "http://alpha.wallhaven.cc/search"
         self.wallhaven_user_url = 'http://alpha.wallhaven.cc/user'
         self.settings_url = 'http://alpha.wallhaven.cc/settings/browsing'
+        self.favs = []
         self.query_type = ''
         self.user_string = ''
         self.query_dir_name = ''
