@@ -132,10 +132,10 @@ class WallScraper(object):
         Also uses custom headers to pass to the web server to allow image downloads. If the user
         doesn't login, they will be unable to download private collections"""
         login_vals = {'username': username, 'password': password}
-        login_url = 'http://alpha.wallhaven.cc/auth/login'
+        login_url = 'https://alpha.wallhaven.cc/auth/login'
         login_data = urllib.urlencode(login_vals)
         http_headers = {'User-agent': 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)',
-                        'referer': 'http://alpha.wallhaven.cc'}
+                        'referer': 'https://alpha.wallhaven.cc'}
         req = urllib2.Request(login_url, login_data, http_headers)
         resp = self.opener.open(req)
         login_html = resp.read()
@@ -165,7 +165,7 @@ class WallScraper(object):
                         'Successfully set thumbnails/page to user setting of %s\n' \
                         'Login to wallhaven to change your thpp setting. This \n' \
                         'determines the number of wallpapers you download at a time.\n' \
-                        'http://alpha.wallhaven.cc/settings/browsing' \
+                        'https://alpha.wallhaven.cc/settings/browsing' \
                         % self.thpp
                     return self.thpp
 
@@ -401,9 +401,9 @@ class WallScraper(object):
         self.verbose = False
         self.fav_prompt = True
         # Settings related to logging in to the wallhaven servers, header data and password etc...
-        self.wallhaven_search_url = "http://alpha.wallhaven.cc/search"
-        self.wallhaven_user_url = 'http://alpha.wallhaven.cc/user'
-        self.settings_url = 'http://alpha.wallhaven.cc/settings/browsing'
+        self.wallhaven_search_url = "https://alpha.wallhaven.cc/search"
+        self.wallhaven_user_url = 'https://alpha.wallhaven.cc/user'
+        self.settings_url = 'https://alpha.wallhaven.cc/settings/browsing'
         self.favs = []
         self.query_type = ''
         self.user_string = ''
@@ -412,7 +412,7 @@ class WallScraper(object):
         self.query_url = ''
         self.query_string = ''
         self.http_headers = {'User-agent': 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)',
-                             'referer': 'http://alpha.wallhaven.cc'}
+                             'referer': 'https://alpha.wallhaven.cc'}
         # Global dictionary used to store the source of a wallpaper, it's name, and it's purity
         # As well as other dictionaries used for comparisons sake
         self.img_names_dict = {}
