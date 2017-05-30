@@ -18,6 +18,8 @@ import urllib2
 import Queue
 import threading
 import random
+# from Tkinter import Tk
+import unicodedata
 
 try:
     from bs4 import BeautifulSoup
@@ -388,7 +390,6 @@ class WallScraper(object):
                 print "END OF LINE, TRON"
                 if os.path.exists(self.temp_file_loc):
                     os.unlink(self.temp_file_loc)
-                    sys.exit()
 
     def __init__(self):
         super(WallScraper, self).__init__()
@@ -494,7 +495,14 @@ class SoupParse(object):
             name_strings.append(proper_link.split('/')[-1])
         # Obtaining the purity of the image
         for li in self.soup.find_all('figure'):
-            purity_tags.append(li.get('class')[1].replace('thumb-', '').strip().upper())
+            p_list = ['nsfw', 'sfw', 'sketchy']
+            # for p in p_list:
+            #     print p
+            #     print li.get('class')
+            #     if p in li.get('class')[1].lower():
+            #         purity_tags.append(li.get('class')[1].replace('thumb-', '').strip().upper())
+            # Updated to support the new tags they're including in this class
+            purity_tags.append(li.get('class')[2].replace('thumb-', '').strip().upper())
         # Count the number of parsed blank urls and name, make sure they match, and remove them from the list.
         num_blank_source = source_links.count('')
         num_blank_name = name_strings.count('')
@@ -768,9 +776,11 @@ def main():
                 scrape.refresh = True
                 config_dir = refresh.config_collection[q].split('\\')[-1]
                 config_file = refresh.config_collection[q]
-                scrape.download_loop(config_dir, config_file)
+                try:
+                    scrape.download_loop(config_dir, config_file)
+                except IOError:
+                    print 'Config file missing for %s, skipping!' % config_file
                 scrape.refresh = False
-
 
 if __name__ == "__main__":
     """If the scripts initiates itself, run the main method
