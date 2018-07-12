@@ -18,6 +18,12 @@ import urllib2
 import Queue
 import threading
 import random
+import pyperclip
+import time
+import inspect
+# from Tkinter import Tk
+import unicodedata
+
 
 try:
     from bs4 import BeautifulSoup
@@ -132,10 +138,10 @@ class WallScraper(object):
         Also uses custom headers to pass to the web server to allow image downloads. If the user
         doesn't login, they will be unable to download private collections"""
         login_vals = {'username': username, 'password': password}
-        login_url = 'http://alpha.wallhaven.cc/auth/login'
+        login_url = 'https://alpha.wallhaven.cc/auth/login'
         login_data = urllib.urlencode(login_vals)
         http_headers = {'User-agent': 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)',
-                        'referer': 'http://alpha.wallhaven.cc'}
+                        'referer': 'https://alpha.wallhaven.cc'}
         req = urllib2.Request(login_url, login_data, http_headers)
         resp = self.opener.open(req)
         login_html = resp.read()
@@ -165,7 +171,7 @@ class WallScraper(object):
                         'Successfully set thumbnails/page to user setting of %s\n' \
                         'Login to wallhaven to change your thpp setting. This \n' \
                         'determines the number of wallpapers you download at a time.\n' \
-                        'http://alpha.wallhaven.cc/settings/browsing' \
+                        'https://alpha.wallhaven.cc/settings/browsing' \
                         % self.thpp
                     return self.thpp
 
@@ -192,6 +198,14 @@ class WallScraper(object):
             self.printv(self.query_url)  # e.g. http://alpha.wallhaven.cc/user/andrusk/favorites
             # print self.query_type
             return self.query_url
+
+        elif scrape.download_type == 'subscriptions':
+            self.query_type = 'subscriptions'
+            # TODO First run through the user subscriptions page and parse out the list of active subscriptions
+            # TODO Then run through the list of subs and the list of already downloaded searches and re-run existing, then run new sbus
+            self.query_url = 'https://alpha.wallhaven.cc/subscription'
+            return self.query_url
+
         # TOPLIST Download |
         elif 'toplist' in tools.search_query['query']:
             self.query_string = ''
@@ -233,6 +247,10 @@ class WallScraper(object):
             print string
 
     def run_check(self):
+        """
+        This method tracks the current image number, downloads, and whether it should keep downloading or not
+        :return:
+        """
         # print ' thpp', self.thpp, 'success', self.success_count, 'already down', self.already_exist, 'numofwall',  self.num_of_walls, 'start range', self.start_range, 'max range', self.max_range
         if int(self.num_of_walls) and int(self.max_range):
             if (int(self.success_count) + int(self.already_exist)) >= int(self.num_of_walls):
@@ -252,9 +270,9 @@ class WallScraper(object):
         tools.directory_checker(tools.downloads_directory)
         # Setting the file name and directory in case of purity download filtering
         if tools.search_query['query'] and not tools.search_query['favorites']:
-            self.clean_query_name = tools.search_query['query'].replace(' ', '_').replace('"', '').strip().title()
+            self.clean_query_name = (tools.search_query['query'].replace(' ', '_').replace('"', '').strip().title()).decode(encoding='utf8')
         elif tools.search_query['query'] and tools.search_query['favorites']:
-            self.clean_query_name = tools.search_query['query'].replace(' ', '_').replace('"', '').strip()
+            self.clean_query_name = (tools.search_query['query'].replace(' ', '_').replace('"', '').strip()).decode(encoding='utf8')
         # Set the query dir name and the query config filename
         self.query_dir_name = os.path.join(tools.downloads_directory, self.clean_query_name)
         self.query_config_file = os.path.abspath(os.path.join(self.query_dir_name, self.clean_query_name + '.ini'))
@@ -269,12 +287,13 @@ class WallScraper(object):
         html_to_file(url_html, os.path.abspath('.'), temp_file_loc=self.temp_file_loc)
         return self.temp_file_loc
 
-    def download_loop(self, dest_dir, config_file):
-        """Check the dest directory, if not default, create missing dir
-        then start scraping the thumbnail page for image"""
-        # Load config using tools class - set search query and user variables
-        # to the settings in the file.
-        # I'm really over utilizing class variables. There's no need to use so many tools instance variables. need to clean up.
+    def login_setdirs(self, dest_dir, config_file):
+        """
+        This will log the user in and set the default directories
+        :param dest_dir:
+        :param config_file:
+        :return:
+        """
         self.user_directory = dest_dir
         self.query_config_file = config_file
         tools.search_query, tools.user_vars = tools.load_config(
@@ -305,6 +324,53 @@ class WallScraper(object):
         # get number of walls from query outside of loop to prevent over matching
         self.build_url_request()
         parse.make_soup(self.html_from_url_request(), True)
+
+    def download_loop(self, dest_dir, config_file):
+        curframe = inspect.currentframe()
+        calframe = inspect.getouterframes(curframe, 2)
+        caller_name = calframe[1][3]
+        print 'caller name', calframe[1][3]
+
+        """Check the dest directory, if not default, create missing dir
+        then start scraping the thumbnail page for image"""
+        # Load config using tools class - set search query and user variables
+        # to the settings in the file.
+        # I'm really over utilizing class variables. There's no need to use so many tools instance variables. need to clean up.
+        #TODO Change the download loop based on the keyword kept in the clipboard. This will make updating queries a breeze
+        if caller_name == 'monitor_download':
+            print 'call name matched!'
+            sys.exit()
+        else:
+            self.user_directory = dest_dir
+            self.query_config_file = config_file
+            tools.search_query, tools.user_vars = tools.load_config(
+                os.path.join(os.path.abspath(self.user_directory), config_file))
+            if tools.user_vars['verbose'] == 'True':
+                self.verbose = True
+            if tools.search_query['nsfw'][2] == '1' and \
+                    (tools.user_vars['username'] == '' or tools.user_vars['password'] == ''):
+                print 'type your username and press enter'
+                tools.user_vars['username'] = raw_input()
+                print 'type your password and press enter'
+                tools.user_vars['password'] = raw_input()
+            elif tools.search_query['nsfw'][2] == '1' and \
+                    (tools.user_vars['username'] != '' and tools.user_vars['password'] != ''):
+                self.user_login(tools.user_vars['username'], tools.user_vars['password'])
+            self.user_settings()
+            # Make sure the destination directory exists
+            tools.directory_checker(tools.user_vars['destination_directory'])
+            self.destination_directory = tools.user_vars['destination_directory']
+            tools.downloads_directory = tools.user_vars['destination_directory']
+        scrape.set_query_config_file_name()
+        # TODO Add the ability to overwrite an excising query ini file with new information from the custom search
+        if os.path.exists(self.query_config_file):
+            print 'Pre-existing query found, picking up where it left off'
+            tools.search_query, tools.user_vars = tools.load_config(self.query_config_file)
+        self.start_range = tools.user_vars['start_range']
+        self.max_range = tools.user_vars['max_range']
+        # get number of walls from query outside of loop to prevent over matching
+        self.build_url_request()
+        parse.make_soup(self.html_from_url_request(), True)
         if self.query_type == 'search':
             self.num_of_walls = parse.number_of_results()
         elif self.query_type == 'favorites' and self.fav_prompt:
@@ -323,6 +389,8 @@ class WallScraper(object):
             self.num_of_walls = parse.uc[favs[int(choice) - 1]][0]
             self.query_url = parse.uc[favs[int(choice) - 1]][1]
             self.fav_prompt = False
+        elif self.query_type == 'subscriptions':
+            self.query_url = parse.subscriptions
 
         self.run_check()
         # Loop for retrieving images
@@ -365,7 +433,13 @@ class WallScraper(object):
             print 'All wallpapers downloaded or already exist'
             print 'Would you like to reset the start range in the configuration file and start the downloads again?[Yes]'
             # code for allowing a user to reset the download counter and start over, so they don't have to do it manually
-            choice = raw_input()
+            choice = 'move along sonny jim'
+            if self.download_type == '--refresh' and self.refresh:
+                choice = ''
+            elif self.download_type == '':
+                choice = raw_input()
+            if self.download_type == '--refresh' and not self.refresh:
+                choice = choice
             if choice == '' or choice in self.yes_list:
                 tools.user_vars['start_range'] = 0
                 tools.write_config(self.query_config_file, tools.search_query, tools.user_vars)
@@ -376,12 +450,12 @@ class WallScraper(object):
                 self.start_range = 0
                 self.main_loop = True
                 self.run_once = True
+                self.refresh = False
                 self.download_loop(os.path.abspath(self.user_directory), self.query_config_file)
-            if choice != '' and choice not in self.yes_list:
+            elif (choice != '' and choice not in self.yes_list) or not self.refresh:
                 print "END OF LINE, TRON"
                 if os.path.exists(self.temp_file_loc):
                     os.unlink(self.temp_file_loc)
-                    sys.exit()
 
     def __init__(self):
         super(WallScraper, self).__init__()
@@ -401,18 +475,20 @@ class WallScraper(object):
         self.verbose = False
         self.fav_prompt = True
         # Settings related to logging in to the wallhaven servers, header data and password etc...
-        self.wallhaven_search_url = "http://alpha.wallhaven.cc/search"
-        self.wallhaven_user_url = 'http://alpha.wallhaven.cc/user'
-        self.settings_url = 'http://alpha.wallhaven.cc/settings/browsing'
+        self.wallhaven_search_url = "https://alpha.wallhaven.cc/search"
+        self.wallhaven_user_url = 'https://alpha.wallhaven.cc/user'
+        self.settings_url = 'https://alpha.wallhaven.cc/settings/browsing'
         self.favs = []
         self.query_type = ''
+        self.download_type = ''
+        self.refresh = False
         self.user_string = ''
         self.query_dir_name = ''
         self.query_config_file = ''
         self.query_url = ''
         self.query_string = ''
         self.http_headers = {'User-agent': 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)',
-                             'referer': 'http://alpha.wallhaven.cc'}
+                             'referer': 'https://alpha.wallhaven.cc'}
         # Global dictionary used to store the source of a wallpaper, it's name, and it's purity
         # As well as other dictionaries used for comparisons sake
         self.img_names_dict = {}
@@ -439,6 +515,8 @@ class WallScraper(object):
 
 
 class SoupParse(object):
+
+    # TODO Add a new parsing method to walk through the list of users subscriptions and download all of the subs according to user defined settings, some kind of sub crawler
     def make_soup(self, html_file, clean_html=False):
         """This method is used to make prettified soup out of a users html file. This soup
         can then be used to parse using the other parse methods. If an html file is
@@ -464,6 +542,23 @@ class SoupParse(object):
         # print self.soup
         return self.soup
 
+    def find_sub_hrefs(self):
+        """
+        This method will parse out all user subscriptions into a nice dictionary for easy download through the download loop
+        :return:
+        """
+        for s in self.soup.find_all('li', class_='has-new'):
+            # Layout of the tag_contents is below:
+            # 'num_of_new' = tag_contents[0]
+            # 'search_name' = tag_contents[1]
+            # 'search_url' = s.contents[1].get('href')
+            tag_contents = s.contents[-2].get_text('|', strip=True).split('|')
+            self.subscriptions[tag_contents[1]] = {'search_url': s.contents[1].get('href'), 'num_new': tag_contents[0]}
+            self.total_new += int(self.subscriptions[tag_contents[1]]['num_new'])
+        # for sub in subscriptions:
+        #     print sub, subscriptions[sub]
+        return self.subscriptions
+
     def match_img_info(self):
         """This method should replace both the find_img_source and match_img methods"""
         # self.make_soup('wallpaper_thumbs.html', clean_html=True)
@@ -483,7 +578,14 @@ class SoupParse(object):
             name_strings.append(proper_link.split('/')[-1])
         # Obtaining the purity of the image
         for li in self.soup.find_all('figure'):
-            purity_tags.append(li.get('class')[1].replace('thumb-', '').strip().upper())
+            p_list = ['nsfw', 'sfw', 'sketchy']
+            # for p in p_list:
+            #     print p
+            #     print li.get('class')
+            #     if p in li.get('class')[1].lower():
+            #         purity_tags.append(li.get('class')[1].replace('thumb-', '').strip().upper())
+            # Updated to support the new tags they're including in this class
+            purity_tags.append(li.get('class')[2].replace('thumb-', '').strip().upper())
         # Count the number of parsed blank urls and name, make sure they match, and remove them from the list.
         num_blank_source = source_links.count('')
         num_blank_name = name_strings.count('')
@@ -555,6 +657,8 @@ class SoupParse(object):
 
     def __init__(self):
         super(SoupParse, self).__init__()
+        self.total_new = 0
+        self.subscriptions = {}
         self.html_file = ''
         self.thpp = 24
         self.soup = ''
@@ -642,9 +746,94 @@ class WallTools(object):
         self.c = ConfigParser.ConfigParser()
         self.search_query = ({'query': '', 'board': '111', 'nsfw': '110', 'res': '0', 'res_opt': 'eqeq',
                               'aspect': '0', 'orderby': 'desc', 'orderby_opt': 'views', 'thpp': '24',
-                              'toplist_time': '', 'favorites': 'False'})
+                              'toplist_time': '', 'favorites': 'False', 'subscriptions': 'False'})
         self.user_vars = ({'destination_directory': '.', 'username': '', 'password': '', 'start_range': '0',
                            'max_range': '2000', 'dl_to_diff_folders': 'true', 'verbose': 'False'})
+
+
+# TODO Build a new class that walks through old config files and re-runs existing queries, this can be used to update exisitng queries without much effort
+class ConfigRefresh(object):
+
+    def walk_config(self, config_dir):
+        """
+        This method will be used to walk through the directory structure and load the configs for each search query
+        config_dir = e.g. c:\wallbase\test\searches  # Location of existing search queries that need checked.
+        :return:
+        """
+        print config_dir
+        for d in os.listdir(config_dir):
+            # Set the director of the query as well as the name of the config file
+            # e.g. self.config_collection['Anime_Girls'] = c:\wallbase\searches\Anime_Girls\Anime_Girls.ini
+            # This assume the file exists, if it doesn't it will error out.
+            # TODO should probably search the directories for the ini files and if they don't exist, remove the entry and note the exception
+            self.config_collection[d] = os.path.join(config_dir + '\\' + d, d + '.ini')
+
+
+    # TODO Provide some form of input for the user to validate which queries he'd like to refresh, perhaps offer a list, or let them choose some/all of the queries in the list.
+    # TODO Create a dictionary item for each search query in the searches directory
+    # TODO Load the *.ini files within the directories and set the dict values for the search query dict item
+    # TODO Call scrape.download_loop for each dict item in the config_collection
+
+    def __init__(self):
+        super(ConfigRefresh, self).__init__()
+        self.config_collection = {}
+
+class DownloadThread(threading.Thread):
+    # The purpose of this class is to put the download loop into a thread for completion in the background
+    def run(self):
+        scrape.download_loop(config_dir, config_file)
+
+    def stop(self):
+        self._stopping = True
+
+    def __init__(self, predicate, callback):
+        super(DownloadThread, self).__init__()
+        self._predicate = predicate
+        self._callback = callback
+        self._stopping = False
+
+class ClipMonitor(threading.Thread):
+    def run(self):
+        recent_value = ""
+        # print 'recent_value', recent_value
+        while not self._stopping:
+            tmp_value = pyperclip.paste()
+            # print 'tmp_value', tmp_value
+            if tmp_value != recent_value:
+                recent_value = tmp_value
+                self.search_url = recent_value
+                if self._predicate(recent_value):
+                    self._callback(recent_value)
+                # else:
+                #     print 'url is not a search query'
+            time.sleep(self._pause)
+
+    def stop(self):
+        self._stopping = True
+
+    def __init__(self, predicate, callback, pause=.5):
+        super(ClipMonitor, self).__init__()
+        self._predicate = predicate
+        self._callback = callback
+        self._pause = pause
+        self._stopping = False
+        self.search_url = ""
+
+
+def print_clip(clipboard_content):
+    # The purpose of this method is to print the pyperclip contents to the screen
+    if clipboard_content.startswith("https://") and ("wallhaven.cc" in clipboard_content and 'search' in clipboard_content):
+        print "Found url: %s" % str(clipboard_content)
+    else:
+        print "Non url keyword: %s" % str(clipboard_content)
+
+
+# def url_verified(url):
+#     # The purpose of this static method is to verify that the url input is a wallhaven search url and nothing else
+#     if url.startswith("https://") and ("wallhaven.cc" in url and 'search' in url):
+#         return True
+#     else:
+#         return False
 
 
 def html_to_file(html_file, destination_directory, temp_file_loc=None):
@@ -658,47 +847,171 @@ def html_to_file(html_file, destination_directory, temp_file_loc=None):
     f.close()
 
 
+def set_working_dirs(args):
+    """
+    This method is used to set the base download directory and configuration filename, depending on what the user specified at the command line.
+    Returns both the configuration directory, and configruation filename
+    e.g. c:\wallbase\test, Custom_Search.ini
+    """
+    try:
+        # If the user doesn't specify a directory for the search, use the relative path as the default
+        config_dir = args[1]
+        if 'ini' not in config_dir:
+            config_file = set_ini_name(args[0])
+            return config_dir, config_file
+        elif 'ini' in config_dir:
+            config_file = config_dir.split('\\')[-1]
+            config_dir = args[1].replace(args[1].split('\\')[-1], '')
+            return config_dir, config_file
+    except IndexError:
+        config_dir = '.'
+        config_file = set_ini_name(args[0])
+        print 'Using default directory of', os.path.abspath(os.path.join(config_dir, config_file))
+        return config_dir, config_file
+
+
+def set_ini_name(config_type):
+    """
+    This method sets the configuration filename in case the user didn't specify one as a command line argument
+    :param config_type:
+    :return:
+    """
+    if 'ini' not in config_type:
+        # e.g. c:\wallbase\test
+        # code for creating directory based of just the directory where the ini file is located
+        if config_type == '--config':
+            config_file = 'Custom_Search.ini'
+            return config_file
+        elif config_type == '--favorites':
+            config_file = 'Fav_Search.ini'
+            return config_file
+        elif config_type == '--refresh':
+            config_file = 'Refresh_Search.ini'
+            return config_file
+        elif config_type == '--subscriptions':
+            config_file = 'Subscription_Search.ini'
+            return config_file
+
+
 def main():
     """This function is used to call the rest of the methods from the command line"""
     # Make a list of command line arguments, omitting the [0] element which is the script itself.
     args = sys.argv[1:]
     # If no arguments are given, print proper usage and call the search method
-    if not args:
-        print "\nProper usage:\n\n\t[Wallscraper.py --config (directory where the CustomSearch_ini is located," \
-              " or where you wish to create one. Leave blank for default e.g. c:\\Wallbase\\)]"
-    if len(args) == 0:
-        print "\n\nYou must enter an argument to proceed!"
-    # ===========================================================================
-    # elif args[0] == '--favorites':
-    #     try:
-    #         fdest_dir = args[1]
-    #     except IndexError:
-    #         fdest_dir = ''
-    #     scrape.favorites_download(fdest_dir)
-    #     del args[0:0]
-    # ===========================================================================
-    elif args[0] == '--config':
-        try:
-            config_dir = args[1].replace(args[1].split('\\')[-1], '')
-            config_file = args[1].split('\\')[-1]
-            scrape.download_loop(config_dir, config_file)
-        except IndexError:
-            config_dir = '.'
-            config_file = 'Custom_Search.ini'
-            print 'Using default directory of', os.path.abspath(os.path.join(config_dir, config_file))
-            scrape.download_loop(config_dir, config_file)
+    arg_list = ['--config', '--favorites', '--refresh', '--subscriptions', '--monitor']
+    arg_error = "\nProper usage:\n\n\t[Wallscraper.py --config (directory where the Custom_Search.ini is located," \
+                " or where you wish to create one. Leave blank for default e.g. c:\\Wallbase\\)]" \
+                "\n\n\t[Wallscraper.py --favorites (directory where the Fav_Search_ini is located," \
+                " or where you wish to create one. Leave blank for default e.g. c:\\Wallbase\\)]" \
+                "\n\n\t[Wallscraper.py --refresh [REQUIRED: Directory where the previous search queries are located," \
+                " e.g. c:\\Wallbase\\]" \
+                "\n\n\t[Wallscraper.py --subscriptions (This will refresh all active subscriptions for the specified user\
+                ""\n\n\t[Wallscraper.py --monitor (This will monitor your clipboard for wallhaven search queries and automatically download the query for you"
 
-    elif args[0] == '--favorites':
+    if not args or args[0] not in arg_list:
+        print "\nYou must enter an argument to proceed!"
+        print arg_error
+    else:
+        if args[0] == '--config' or args[0] == '--favorites':
+            config_dir, config_file = set_working_dirs(args)
+            # scrape.download_loop(config_dir, config_file)
+            config_download(config_dir, config_file)
+        elif args[0] == '--refresh':
+            # Will be calling the wall_config class to parse the different queries, so this won't call the download
+            # loop directly like config and favorites do
+            config_dir, config_file = set_working_dirs(args)
+            refresh_download(config_dir, config_file)
+
+            #The below is commented out to move it to the refresh_download method
+            # refresh.walk_config(os.path.join(config_dir, 'searches'))
+            # scrape.download_type = '--refresh'
+            # for q in sorted(refresh.config_collection):
+            #     print 'q', q
+            #     print 'dict value of q', refresh.config_collection[q]
+            #     scrape.refresh = True
+            #     config_dir = refresh.config_collection[q].split('\\')[-1]
+            #     config_file = refresh.config_collection[q]
+            #     try:
+            #         scrape.download_loop(config_dir, config_file)
+            #     except IOError:
+            #         print 'Config file missing for %s, skipping!' % config_file
+            #     scrape.refresh = False
+        elif args[0] == '--subscriptions':
+            # Will be calling the walk_subscriptions class to parse the different queries, so this won't call the download
+            # loop directly like config and favorites do
+            config_dir, config_file = set_working_dirs(args)
+            print config_dir, config_file
+            scrape.download_type = 'subscriptions'
+            scrape.login_setdirs(config_dir, config_file)
+            scrape.build_url_request()
+            parse.make_soup(scrape.html_from_url_request(), True)
+            # print parse.soup
+            parse.find_sub_hrefs()
+            # print parse.subscriptions
+            # print parse.total_new
+            for q in sorted(parse.subscriptions):
+                scrape.refresh = True
+                print q, parse.subscriptions[q]
+                scrape.query_type = 'search'
+                scrape.query_url = parse.subscriptions[q]['search_url']
+                print q, 'query_url', scrape.query_url
+                scrape.download_loop(config_dir, config_file)
+            # TODO Replace the following walk_config call with a soup parse of the user subscription page,
+            # TODO Then create the searchable configs from the list of subscriptions instead of the user directoris
+            # refresh.walk_config(os.path.join(config_dir, 'searches'))
+            # scrape.download_type = '--refresh'
+            # for q in sorted(refresh.config_collection):
+            #     scrape.refresh = True
+            #     config_dir = refresh.config_collection[q].split('\\')[-1]
+            #     config_file = refresh.config_collection[q]
+            #     try:
+            #         scrape.download_loop(config_dir, config_file)
+            #     except IOError:
+            #         print 'Config file missing for %s, skipping!' % config_file
+            #     scrape.refresh = False
+        elif args[0] == '--monitor':
+            config_dir, config_file = set_working_dirs(args)
+            # scrape.download_loop(config_dir, config_file)
+            #TODO The intent of this argument is to allow wallscraper to run in the background and spawn processes
+            # that create queries based on the clipboard contents
+            #TODO Let the user decide when a query is spawned : monitor changes to the clipboard and ask the user to
+            # initiate the query, then if yes, spawn the query in the background and process it.
+            #TODO Treat this the same way you would treat a query that's ran from the custom_search, only via clipboard
+            watcher = ClipMonitor(print_clip, 1.)
+            watcher.start()
+            monitor_download(config_dir)
+
+
+            # TODO Make it so that search queries are processed in a download loop thread
+            # download = DownloadThread()
+
+
+def config_download(config_dir, config_file):
+    scrape.download_loop(config_dir, config_file)
+
+
+def refresh_download(config_dir, config_file):
+    refresh.walk_config(os.path.join(config_dir, 'searches'))
+    scrape.download_type = '--refresh'
+    for q in sorted(refresh.config_collection):
+        print 'q', q
+        print 'dict value of q', refresh.config_collection[q]
+        scrape.refresh = True
+        config_dir = refresh.config_collection[q].split('\\')[-1]
+        config_file = refresh.config_collection[q]
         try:
-            fav_dir = args[1].replace(args[1].split('\\')[-1], '')
-            fav_file = args[1].split('\\')[-1]
-            scrape.download_loop(fav_dir, fav_file)
-        except IndexError:
-            fav_dir = '.'
-            fav_file = 'Fav_Search.ini'
-            # TODO Need to fix where the config file is read from and written to, write now it's not creating one and just running off memory. This won't support resuming later
-            print 'Using default directory of', os.path.abspath(os.path.join(fav_dir, fav_file))
-            scrape.download_loop(fav_dir, fav_file)
+            scrape.download_loop(config_dir, config_file)
+        except IOError:
+            print 'Config file missing for %s, skipping!' % config_file
+        scrape.refresh = False
+
+
+def monitor_download(config_dir):
+    #TODO Enhance this method to support automatically downloading queries based on the keyboard clipboard.
+    #TODO Make it so that a user can just press a button and begin the download after copying some text
+    scrape.download_loop(config_dir, None)
+
+
 
 
 if __name__ == "__main__":
@@ -708,4 +1021,5 @@ if __name__ == "__main__":
     scrape = WallScraper()
     tools = WallTools()
     parse = SoupParse()
+    refresh = ConfigRefresh()
     main()
